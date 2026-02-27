@@ -35,7 +35,7 @@
     <!-- Footer -->
     <footer class="border-t mt-auto">
       <div class="container mx-auto px-4 py-4 max-w-7xl text-center text-sm text-muted-foreground">
-        Powered by <a href="https://github.com/TW-Robotics/nautilus-llm-status" target="_blank" class="font-medium hover:underline">nautilus-llm-status</a>
+        Powered by <a href="https://github.com/TwiN/gatus" target="_blank" class="font-medium hover:underline">Gatus</a> and adapted by Zihao
       </div>
     </footer>
   </div>

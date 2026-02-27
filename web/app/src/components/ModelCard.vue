@@ -21,8 +21,13 @@
         </div>
       </div>
 
+      <!-- Uptime Bar -->
+      <div v-if="model.uptime && model.uptime.length > 0" class="mt-3">
+        <UptimeBar :buckets="model.uptime" :height="16" />
+      </div>
+
       <!-- Last Seen -->
-      <div class="mt-3 text-xs text-muted-foreground">
+      <div class="mt-2 text-xs text-muted-foreground">
         Last seen {{ timeAgo(model.last_seen) }}
       </div>
     </div>
@@ -32,6 +37,7 @@
 <script setup>
 import { computed } from 'vue'
 import StatusDot from './StatusDot.vue'
+import UptimeBar from './UptimeBar.vue'
 
 const props = defineProps({
   model: { type: Object, required: true },

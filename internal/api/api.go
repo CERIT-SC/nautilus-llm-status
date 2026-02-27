@@ -20,9 +20,10 @@ type Server struct {
 	mux     *http.ServeMux
 
 	// Derived from config at construction time
-	scalarSummary  []string // summary metrics without LabelKey
-	labeledSummary []string // summary metrics with LabelKey
-	allSummary     []string // scalarSummary + labeledSummary
+	discoveryMetric string   // metric used for uptime detection
+	scalarSummary   []string // summary metrics without LabelKey
+	labeledSummary  []string // summary metrics with LabelKey
+	allSummary      []string // scalarSummary + labeledSummary
 }
 
 func New(store *storage.Store, scraper *scraper.Scraper, cfg *config.Config) *Server {
@@ -33,8 +34,11 @@ func New(store *storage.Store, scraper *scraper.Scraper, cfg *config.Config) *Se
 		mux:     http.NewServeMux(),
 	}
 
-	// Derive summary metric lists from config rules
+	// Derive summary metric lists and discovery metric from config rules
 	for _, rule := range cfg.Metrics.ScrapeRules {
+		if rule.Discovery {
+			s.discoveryMetric = rule.StorageName
+		}
 		if !rule.Summary {
 			continue
 		}
@@ -110,6 +114,8 @@ type modelResponse struct {
 	LastSeen  string `json:"last_seen"`
 	// Latest values for quick display
 	Latest map[string]interface{} `json:"latest,omitempty"`
+	// 24h uptime: 48 x 30-min buckets, oldest first
+	Uptime []bool `json:"uptime,omitempty"`
 }
 
 func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
@@ -125,6 +131,13 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[api] batch latest metrics error: %v", err)
 		// Continue without latest data rather than failing
 		latestAll = nil
+	}
+
+	// 24h uptime buckets (48 x 30min), using scrape interval for coverage threshold
+	scrapeIntervalSec := int(s.cfg.Prometheus.ScrapeInterval.Seconds())
+	uptimeAll, err := s.store.GetUptimeBuckets(s.discoveryMetric, 24, 30, scrapeIntervalSec)
+	if err != nil {
+		log.Printf("[api] uptime buckets error: %v", err)
 	}
 
 	now := time.Now().UTC()
@@ -147,6 +160,10 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 			FirstSeen: m.FirstSeen.Format(time.RFC3339),
 			LastSeen:  m.LastSeen.Format(time.RFC3339),
 			Latest:    make(map[string]interface{}),
+		}
+
+		if buckets, ok := uptimeAll[m.ID]; ok {
+			mr.Uptime = buckets
 		}
 
 		if latestAll != nil {

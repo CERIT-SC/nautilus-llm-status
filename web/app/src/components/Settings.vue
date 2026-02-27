@@ -1,6 +1,6 @@
 <template>
-  <div id="settings" class="fixed bottom-4 left-4 z-50">
-    <div class="flex items-center gap-1 bg-background/95 backdrop-blur-sm border rounded-full shadow-md p-1">
+  <div id="settings" class="relative">
+    <div class="flex items-center gap-1 border rounded-full p-1">
       <!-- Refresh Rate -->
       <button 
         @click="showRefreshMenu = !showRefreshMenu"
@@ -15,7 +15,7 @@
         <div 
           v-if="showRefreshMenu"
           @click.stop
-          class="absolute bottom-full left-0 mb-2 bg-popover border rounded-lg shadow-lg overflow-hidden"
+          class="absolute top-full left-0 mt-2 bg-popover border rounded-lg shadow-lg overflow-hidden z-50"
         >
           <button
             v-for="interval in REFRESH_INTERVALS"
@@ -44,7 +44,7 @@
         <Moon v-else class="h-3.5 w-3.5 transition-all" />
         
         <!-- Tooltip -->
-        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+        <div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
           {{ darkMode ? 'Light mode' : 'Dark mode' }}
         </div>
       </button>
@@ -162,28 +162,4 @@ onUnmounted(() => {
 
 
 <style scoped>
-/* Animations for smooth transitions */
-@keyframes slideIn {
-  from {
-    transform: translateX(-20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-#settings {
-  animation: slideIn 0.3s ease-out;
-}
-
-#settings > div {
-  transition: all 0.2s ease;
-}
-
-#settings > div:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-}
 </style>

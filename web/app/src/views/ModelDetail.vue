@@ -59,7 +59,7 @@
           <span class="text-sm text-muted-foreground">Time range:</span>
           <div class="flex gap-1">
             <Button
-              v-for="d in ['24h', '7d', '30d']" :key="d"
+              v-for="d in ['3h', '24h', '7d', '30d']" :key="d"
               :variant="duration === d ? 'default' : 'outline'"
               size="sm"
               @click="duration = d"

@@ -399,3 +399,44 @@ func (s *Store) Vacuum() error {
 	_, err := s.db.Exec("VACUUM")
 	return err
 }
+
+// GetUptimeBuckets returns per-model uptime as boolean arrays.
+// Each bucket covers bucketMinutes minutes over the last hours.
+// A bucket is "up" only if it has >= 80% of the expected data points
+// (expected = bucketMinutes * 60 / scrapeIntervalSec).
+func (s *Store) GetUptimeBuckets(metricName string, hours, bucketMinutes, scrapeIntervalSec int) (map[int64][]bool, error) {
+	now := time.Now().UTC()
+	since := now.Add(-time.Duration(hours) * time.Hour)
+	bucketSec := bucketMinutes * 60
+	totalBuckets := (hours * 60) / bucketMinutes
+	expectedPoints := float64(bucketSec / scrapeIntervalSec)
+
+	rows, err := s.db.Query(`
+		SELECT model_id,
+			CAST((strftime('%s', timestamp) - strftime('%s', ?)) AS INTEGER) / ? AS bucket,
+			COUNT(*) AS cnt
+		FROM metrics
+		WHERE metric_name = ? AND timestamp >= ?
+		GROUP BY model_id, bucket
+	`, since, bucketSec, metricName, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int64][]bool)
+	for rows.Next() {
+		var modelID int64
+		var bucket, cnt int
+		if err := rows.Scan(&modelID, &bucket, &cnt); err != nil {
+			return nil, err
+		}
+		if result[modelID] == nil {
+			result[modelID] = make([]bool, totalBuckets)
+		}
+		if bucket >= 0 && bucket < totalBuckets {
+			result[modelID][bucket] = float64(cnt) >= expectedPoints*0.8
+		}
+	}
+	return result, nil
+}

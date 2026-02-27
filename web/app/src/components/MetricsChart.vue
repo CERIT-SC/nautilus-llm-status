@@ -53,6 +53,34 @@ const hasData = computed(() => {
   return seriesData.value.length > 0 && seriesData.value.some(s => s.points && s.points.length > 0)
 })
 
+// Insert null points where gaps exceed 2x the median interval, so Chart.js breaks the line.
+const withGaps = (points, scale) => {
+  if (points.length < 2) return points.map(p => ({ x: new Date(p.timestamp), y: p.value * scale }))
+
+  // Estimate typical interval from median of first 20 consecutive deltas
+  const deltas = []
+  const limit = Math.min(points.length, 21)
+  for (let i = 1; i < limit; i++) {
+    deltas.push(new Date(points[i].timestamp) - new Date(points[i - 1].timestamp))
+  }
+  deltas.sort((a, b) => a - b)
+  const median = deltas[Math.floor(deltas.length / 2)]
+  const gapThreshold = median * 2.5
+
+  const result = []
+  for (let i = 0; i < points.length; i++) {
+    if (i > 0) {
+      const gap = new Date(points[i].timestamp) - new Date(points[i - 1].timestamp)
+      if (gap > gapThreshold) {
+        // Insert null to break the line
+        result.push({ x: new Date(new Date(points[i - 1].timestamp).getTime() + median), y: null })
+      }
+    }
+    result.push({ x: new Date(points[i].timestamp), y: points[i].value * scale })
+  }
+  return result
+}
+
 const chartData = computed(() => {
   if (!hasData.value) return { labels: [], datasets: [] }
 
@@ -63,14 +91,15 @@ const chartData = computed(() => {
     const scale = isMulti ? 1 : props.scale
     return {
       label: series.label || props.title,
-      data: series.points.map(p => ({ x: new Date(p.timestamp), y: p.value * scale })),
+      data: withGaps(series.points, scale),
       borderColor: color.border,
       backgroundColor: props.fill ? color.bg : 'transparent',
       borderWidth: 2,
       pointRadius: 0,
       pointHoverRadius: 3,
       tension: 0.2,
-      fill: props.fill
+      fill: props.fill,
+      spanGaps: false
     }
   })
 
@@ -116,8 +145,8 @@ const chartOptions = computed(() => {
       x: {
         type: 'time',
         time: {
-          unit: props.duration === '24h' ? 'hour' : props.duration === '7d' ? 'day' : 'day',
-          displayFormats: { hour: 'MMM d, ha', day: 'MMM d' }
+          unit: props.duration === '3h' ? 'minute' : props.duration === '24h' ? 'hour' : 'day',
+          displayFormats: { minute: 'h:mm a', hour: 'MMM d, ha', day: 'MMM d' }
         },
         grid: {
           color: isDark.value ? 'rgba(75, 85, 99, 0.3)' : 'rgba(229, 231, 235, 0.8)',
@@ -153,6 +182,7 @@ const getDurationParams = () => {
   const to = new Date()
   let from
   switch (props.duration) {
+    case '3h': from = new Date(to.getTime() - 3 * 60 * 60 * 1000); break
     case '7d': from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000); break
     case '30d': from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000); break
     default: from = new Date(to.getTime() - 24 * 60 * 60 * 1000)
