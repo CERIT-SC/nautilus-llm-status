@@ -84,7 +84,15 @@ func (s *Store) migrate() error {
 			error_message TEXT
 		);
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Migrate legacy latency_seconds (label_key=p50/p99) to latency_p50/latency_p99
+	s.db.Exec(`UPDATE metrics SET metric_name='latency_p50', label_key='' WHERE metric_name='latency_seconds' AND label_key='p50'`)
+	s.db.Exec(`UPDATE metrics SET metric_name='latency_p99', label_key='' WHERE metric_name='latency_seconds' AND label_key='p99'`)
+
+	return nil
 }
 
 func (s *Store) UpsertModel(namespace, container, modelName string, ts time.Time) (int64, error) {

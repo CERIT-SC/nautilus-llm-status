@@ -49,6 +49,12 @@ func (s *Scraper) setHealth(healthy bool) {
 	}
 }
 
+type modelInfo struct {
+	id        int64
+	namespace string
+	container string
+}
+
 // Run starts the periodic scraper. Blocks until done channel is closed.
 func (s *Scraper) Run(done <-chan struct{}) {
 	// Run gap filler first
@@ -76,14 +82,28 @@ func (s *Scraper) Run(done <-chan struct{}) {
 	}
 }
 
+// discoveryRule returns the first rule with Discovery: true.
+func discoveryRule(rules []config.ScrapeRule) *config.ScrapeRule {
+	for i := range rules {
+		if rules[i].Discovery {
+			return &rules[i]
+		}
+	}
+	return nil
+}
+
 func (s *Scraper) scrape() {
 	now := time.Now().UTC()
-	mc := s.cfg.Metrics
+	rules := s.cfg.Metrics.ScrapeRules
 
-	// 1. Discover models + get running requests (also serves as online detection)
-	results, latency, err := s.prom.InstantQuery(
-		fmt.Sprintf(`sum(%s) by (namespace, container, model_name)`, mc.NumRequestsRunning),
-	)
+	disc := discoveryRule(rules)
+	if disc == nil {
+		log.Println("[scraper] no discovery rule configured")
+		return
+	}
+
+	// 1. Run discovery query to find models
+	results, latency, err := s.prom.InstantQuery(disc.Query)
 	if err != nil {
 		log.Printf("[scraper] prometheus error: %v", err)
 		s.setHealth(false)
@@ -93,9 +113,8 @@ func (s *Scraper) scrape() {
 	s.setHealth(true)
 	s.store.RecordPrometheusHealth(true, int(latency.Milliseconds()), "")
 
-	// Build model map for this scrape
+	// Build model map and collect discovery metric rows
 	models := make(map[string]modelInfo) // key: "namespace/container"
-
 	var metricRows []storage.MetricRow
 
 	for _, r := range results {
@@ -116,25 +135,23 @@ func (s *Scraper) scrape() {
 
 		key := ns + "/" + ctr
 		models[key] = modelInfo{id: id, namespace: ns, container: ctr}
+
+		labelKey := ""
+		if disc.LabelKey != "" {
+			labelKey = r.Metric[disc.LabelKey]
+		}
 		metricRows = append(metricRows, storage.MetricRow{
-			ModelID: id, MetricName: "num_requests_running", Timestamp: now, Value: val,
+			ModelID: id, MetricName: disc.StorageName, LabelKey: labelKey, Timestamp: now, Value: val,
 		})
 	}
 
-	// 2. Waiting requests
-	s.scrapeGauge(mc.NumRequestsWaiting, "num_requests_waiting", "sum", models, now, &metricRows)
-
-	// 3. KV cache (avg for percentages)
-	s.scrapeGauge(mc.KVCacheUsagePerc, "kv_cache_usage_perc", "avg", models, now, &metricRows)
-
-	// 4. GPU count per type
-	s.scrapeGPU(models, now, &metricRows)
-
-	// 5. Throughput (rate)
-	s.scrapeRate(mc.GenerationTokens, "generation_tokens_rate", models, now, &metricRows)
-
-	// 6. Latency p50 and p99
-	s.scrapeLatency(mc.E2ELatencyHistogram, models, now, &metricRows)
+	// 2. Run all non-discovery rules
+	for _, rule := range rules {
+		if rule.Discovery {
+			continue // already handled above
+		}
+		s.scrapeRule(rule, models, now, &metricRows)
+	}
 
 	// Batch insert all metrics
 	if err := s.store.InsertMetricBatch(metricRows); err != nil {
@@ -142,11 +159,11 @@ func (s *Scraper) scrape() {
 	}
 }
 
-func (s *Scraper) scrapeGauge(promMetric, storageName, aggFn string, models map[string]modelInfo, now time.Time, rows *[]storage.MetricRow) {
-	query := fmt.Sprintf(`%s(%s) by (namespace, container)`, aggFn, promMetric)
-	results, _, err := s.prom.InstantQuery(query)
+// scrapeRule runs a single ScrapeRule instant query and appends results.
+func (s *Scraper) scrapeRule(rule config.ScrapeRule, models map[string]modelInfo, now time.Time, rows *[]storage.MetricRow) {
+	results, _, err := s.prom.InstantQuery(rule.Query)
 	if err != nil {
-		log.Printf("[scraper] %s query error: %v", storageName, err)
+		log.Printf("[scraper] %s query error: %v", rule.StorageName, err)
 		return
 	}
 	for _, r := range results {
@@ -159,130 +176,33 @@ func (s *Scraper) scrapeGauge(promMetric, storageName, aggFn string, models map[
 		if err != nil {
 			continue
 		}
-		*rows = append(*rows, storage.MetricRow{
-			ModelID: m.id, MetricName: storageName, Timestamp: now, Value: val,
-		})
-	}
-}
-
-type modelInfo struct {
-	id        int64
-	namespace string
-	container string
-}
-
-func (s *Scraper) scrapeGPU(models map[string]modelInfo, now time.Time, rows *[]storage.MetricRow) {
-	mc := s.cfg.Metrics
-
-	// GPU count per (namespace, container, GPU model)
-	query := fmt.Sprintf(`count(%s) by (namespace, container, modelName)`, mc.GPUUtilization)
-	results, _, err := s.prom.InstantQuery(query)
-	if err != nil {
-		log.Printf("[scraper] gpu count query error: %v", err)
-		return
-	}
-	for _, r := range results {
-		key := r.Metric["namespace"] + "/" + r.Metric["container"]
-		m, ok := models[key]
-		if !ok {
+		if rule.SkipNaN && (math.IsNaN(val) || math.IsInf(val, 0)) {
 			continue
 		}
-		gpuModel := r.Metric["modelName"]
-		_, val, err := ParseValue(r.Value)
-		if err != nil {
-			continue
+		labelKey := ""
+		if rule.LabelKey != "" {
+			labelKey = r.Metric[rule.LabelKey]
 		}
 		*rows = append(*rows, storage.MetricRow{
-			ModelID: m.id, MetricName: "gpu_count", LabelKey: gpuModel, Timestamp: now, Value: val,
+			ModelID: m.id, MetricName: rule.StorageName, LabelKey: labelKey, Timestamp: now, Value: val,
 		})
-	}
-
-	// GPU utilization avg per (namespace, container, GPU model)
-	query = fmt.Sprintf(`avg(%s) by (namespace, container, modelName)`, mc.GPUUtilization)
-	results, _, err = s.prom.InstantQuery(query)
-	if err != nil {
-		log.Printf("[scraper] gpu util query error: %v", err)
-		return
-	}
-	for _, r := range results {
-		key := r.Metric["namespace"] + "/" + r.Metric["container"]
-		m, ok := models[key]
-		if !ok {
-			continue
-		}
-		gpuModel := r.Metric["modelName"]
-		_, val, err := ParseValue(r.Value)
-		if err != nil {
-			continue
-		}
-		*rows = append(*rows, storage.MetricRow{
-			ModelID: m.id, MetricName: "gpu_utilization", LabelKey: gpuModel, Timestamp: now, Value: val,
-		})
-	}
-}
-
-func (s *Scraper) scrapeRate(promMetric, storageName string, models map[string]modelInfo, now time.Time, rows *[]storage.MetricRow) {
-	query := fmt.Sprintf(`sum(rate(%s[5m])) by (namespace, container)`, promMetric)
-	results, _, err := s.prom.InstantQuery(query)
-	if err != nil {
-		log.Printf("[scraper] %s query error: %v", storageName, err)
-		return
-	}
-	for _, r := range results {
-		key := r.Metric["namespace"] + "/" + r.Metric["container"]
-		m, ok := models[key]
-		if !ok {
-			continue
-		}
-		_, val, err := ParseValue(r.Value)
-		if err != nil {
-			continue
-		}
-		*rows = append(*rows, storage.MetricRow{
-			ModelID: m.id, MetricName: storageName, Timestamp: now, Value: val,
-		})
-	}
-}
-
-func (s *Scraper) scrapeLatency(promMetric string, models map[string]modelInfo, now time.Time, rows *[]storage.MetricRow) {
-	for _, pct := range []struct {
-		quantile string
-		label    string
-	}{
-		{"0.5", "p50"},
-		{"0.99", "p99"},
-	} {
-		query := fmt.Sprintf(`histogram_quantile(%s, sum(rate(%s[5m])) by (le, namespace, container))`, pct.quantile, promMetric)
-		results, _, err := s.prom.InstantQuery(query)
-		if err != nil {
-			log.Printf("[scraper] latency %s query error: %v", pct.label, err)
-			continue
-		}
-		for _, r := range results {
-			key := r.Metric["namespace"] + "/" + r.Metric["container"]
-			m, ok := models[key]
-			if !ok {
-				continue
-			}
-			_, val, err := ParseValue(r.Value)
-			if err != nil || math.IsNaN(val) || math.IsInf(val, 0) {
-				continue
-			}
-			*rows = append(*rows, storage.MetricRow{
-				ModelID: m.id, MetricName: "latency_seconds", LabelKey: pct.label, Timestamp: now, Value: val,
-			})
-		}
 	}
 }
 
 func (s *Scraper) fillGaps() {
 	log.Println("[gap-filler] checking for gaps...")
-	mc := s.cfg.Metrics
+	rules := s.cfg.Metrics.ScrapeRules
 	now := time.Now().UTC()
 	sevenDaysAgo := now.Add(-7 * 24 * time.Hour)
 
-	// Find the newest stored timestamp across all metrics
-	newest, err := s.store.GetNewestMetricTimestamp("num_requests_running")
+	disc := discoveryRule(rules)
+	if disc == nil {
+		log.Println("[gap-filler] no discovery rule configured")
+		return
+	}
+
+	// Find the newest stored timestamp from the discovery metric
+	newest, err := s.store.GetNewestMetricTimestamp(disc.StorageName)
 	if err != nil {
 		log.Printf("[gap-filler] error getting newest timestamp: %v", err)
 	}
@@ -309,7 +229,7 @@ func (s *Scraper) fillGaps() {
 			start = fillFrom
 		}
 
-		err := s.backfillChunk(mc, start, end)
+		err := s.backfillChunk(rules, start, end)
 		if err != nil {
 			log.Printf("[gap-filler] chunk error: %v, backing off %s", err, backoff)
 			time.Sleep(backoff)
@@ -321,14 +241,18 @@ func (s *Scraper) fillGaps() {
 	log.Println("[gap-filler] done")
 }
 
-func (s *Scraper) backfillChunk(mc config.MetricsConfig, start, end time.Time) error {
+func (s *Scraper) backfillChunk(rules []config.ScrapeRule, start, end time.Time) error {
 	step := 30 * time.Second
 
-	// Backfill running requests (also discovers models)
-	query := fmt.Sprintf(`sum(%s) by (namespace, container, model_name)`, mc.NumRequestsRunning)
-	results, err := s.prom.RangeQuery(query, start, end, step)
+	disc := discoveryRule(rules)
+	if disc == nil {
+		return fmt.Errorf("no discovery rule configured")
+	}
+
+	// Backfill discovery rule first (discovers models)
+	results, err := s.prom.RangeQuery(disc.Query, start, end, step)
 	if err != nil {
-		return fmt.Errorf("range query: %w", err)
+		return fmt.Errorf("discovery range query: %w", err)
 	}
 
 	var allRows []storage.MetricRow
@@ -363,25 +287,24 @@ func (s *Scraper) backfillChunk(mc config.MetricsConfig, start, end time.Time) e
 			if err != nil {
 				continue
 			}
+			labelKey := ""
+			if disc.LabelKey != "" {
+				labelKey = r.Metric[disc.LabelKey]
+			}
 			allRows = append(allRows, storage.MetricRow{
-				ModelID: id, MetricName: "num_requests_running", Timestamp: ts, Value: val,
+				ModelID: id, MetricName: disc.StorageName, LabelKey: labelKey, Timestamp: ts, Value: val,
 			})
 		}
 	}
 
-	// Backfill other gauge metrics
-	for _, m := range []struct {
-		prom    string
-		name    string
-		aggFn   string
-	}{
-		{mc.NumRequestsWaiting, "num_requests_waiting", "sum"},
-		{mc.KVCacheUsagePerc, "kv_cache_usage_perc", "avg"},
-	} {
-		q := fmt.Sprintf(`%s(%s) by (namespace, container)`, m.aggFn, m.prom)
-		rr, err := s.prom.RangeQuery(q, start, end, step)
+	// Backfill all non-discovery rules
+	for _, rule := range rules {
+		if rule.Discovery {
+			continue
+		}
+		rr, err := s.prom.RangeQuery(rule.Query, start, end, step)
 		if err != nil {
-			log.Printf("[gap-filler] %s range query error: %v", m.name, err)
+			log.Printf("[gap-filler] %s range query error: %v", rule.StorageName, err)
 			continue
 		}
 		for _, r := range rr {
@@ -390,119 +313,20 @@ func (s *Scraper) backfillChunk(mc config.MetricsConfig, start, end time.Time) e
 			if !ok {
 				continue
 			}
-			for _, v := range r.Values {
-				ts, val, err := ParseValue(v)
-				if err != nil {
-					continue
-				}
-				allRows = append(allRows, storage.MetricRow{
-					ModelID: id, MetricName: m.name, Timestamp: ts, Value: val,
-				})
-			}
-		}
-	}
-
-	// Backfill GPU count
-	q := fmt.Sprintf(`count(%s) by (namespace, container, modelName)`, mc.GPUUtilization)
-	rr, err := s.prom.RangeQuery(q, start, end, step)
-	if err != nil {
-		log.Printf("[gap-filler] gpu count range query error: %v", err)
-	} else {
-		for _, r := range rr {
-			key := r.Metric["namespace"] + "/" + r.Metric["container"]
-			id, ok := models[key]
-			if !ok {
-				continue
-			}
-			gpuModel := r.Metric["modelName"]
-			for _, v := range r.Values {
-				ts, val, err := ParseValue(v)
-				if err != nil {
-					continue
-				}
-				allRows = append(allRows, storage.MetricRow{
-					ModelID: id, MetricName: "gpu_count", LabelKey: gpuModel, Timestamp: ts, Value: val,
-				})
-			}
-		}
-	}
-
-	// Backfill GPU utilization
-	q = fmt.Sprintf(`avg(%s) by (namespace, container, modelName)`, mc.GPUUtilization)
-	rr, err = s.prom.RangeQuery(q, start, end, step)
-	if err != nil {
-		log.Printf("[gap-filler] gpu util range query error: %v", err)
-	} else {
-		for _, r := range rr {
-			key := r.Metric["namespace"] + "/" + r.Metric["container"]
-			id, ok := models[key]
-			if !ok {
-				continue
-			}
-			gpuModel := r.Metric["modelName"]
-			for _, v := range r.Values {
-				ts, val, err := ParseValue(v)
-				if err != nil {
-					continue
-				}
-				allRows = append(allRows, storage.MetricRow{
-					ModelID: id, MetricName: "gpu_utilization", LabelKey: gpuModel, Timestamp: ts, Value: val,
-				})
-			}
-		}
-	}
-
-	// Backfill throughput rate
-	q = fmt.Sprintf(`sum(rate(%s[5m])) by (namespace, container)`, mc.GenerationTokens)
-	rr, err = s.prom.RangeQuery(q, start, end, step)
-	if err != nil {
-		log.Printf("[gap-filler] throughput range query error: %v", err)
-	} else {
-		for _, r := range rr {
-			key := r.Metric["namespace"] + "/" + r.Metric["container"]
-			id, ok := models[key]
-			if !ok {
-				continue
+			labelKey := ""
+			if rule.LabelKey != "" {
+				labelKey = r.Metric[rule.LabelKey]
 			}
 			for _, v := range r.Values {
 				ts, val, err := ParseValue(v)
 				if err != nil {
 					continue
 				}
-				allRows = append(allRows, storage.MetricRow{
-					ModelID: id, MetricName: "generation_tokens_rate", Timestamp: ts, Value: val,
-				})
-			}
-		}
-	}
-
-	// Backfill latency p50 and p99
-	for _, pct := range []struct {
-		quantile string
-		label    string
-	}{
-		{"0.5", "p50"},
-		{"0.99", "p99"},
-	} {
-		q = fmt.Sprintf(`histogram_quantile(%s, sum(rate(%s[5m])) by (le, namespace, container))`, pct.quantile, mc.E2ELatencyHistogram)
-		rr, err = s.prom.RangeQuery(q, start, end, step)
-		if err != nil {
-			log.Printf("[gap-filler] latency %s range query error: %v", pct.label, err)
-			continue
-		}
-		for _, r := range rr {
-			key := r.Metric["namespace"] + "/" + r.Metric["container"]
-			id, ok := models[key]
-			if !ok {
-				continue
-			}
-			for _, v := range r.Values {
-				ts, val, err := ParseValue(v)
-				if err != nil || math.IsNaN(val) || math.IsInf(val, 0) {
+				if rule.SkipNaN && (math.IsNaN(val) || math.IsInf(val, 0)) {
 					continue
 				}
 				allRows = append(allRows, storage.MetricRow{
-					ModelID: id, MetricName: "latency_seconds", LabelKey: pct.label, Timestamp: ts, Value: val,
+					ModelID: id, MetricName: rule.StorageName, LabelKey: labelKey, Timestamp: ts, Value: val,
 				})
 			}
 		}
@@ -511,11 +335,11 @@ func (s *Scraper) backfillChunk(mc config.MetricsConfig, start, end time.Time) e
 	// Insert in batches of 10k to bound memory
 	const batchSize = 10000
 	for i := 0; i < len(allRows); i += batchSize {
-		end := i + batchSize
-		if end > len(allRows) {
-			end = len(allRows)
+		batchEnd := i + batchSize
+		if batchEnd > len(allRows) {
+			batchEnd = len(allRows)
 		}
-		if err := s.store.InsertMetricBatch(allRows[i:end]); err != nil {
+		if err := s.store.InsertMetricBatch(allRows[i:batchEnd]); err != nil {
 			return fmt.Errorf("batch insert: %w", err)
 		}
 	}

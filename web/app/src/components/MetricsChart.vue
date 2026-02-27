@@ -24,7 +24,9 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 
 const props = defineProps({
   modelId: { type: Number, required: true },
-  metricName: { type: String, required: true },
+  metricName: { type: String, default: '' },
+  // For overlaying multiple metrics (e.g. latency P50 + P99)
+  metricNames: { type: Array, default: null }, // [{name, label, scale?}]
   title: { type: String, required: true },
   unit: { type: String, default: '' },
   duration: { type: String, default: '24h' },
@@ -54,11 +56,14 @@ const hasData = computed(() => {
 const chartData = computed(() => {
   if (!hasData.value) return { labels: [], datasets: [] }
 
+  const isMulti = props.metricNames && props.metricNames.length > 0
   const datasets = seriesData.value.map((series, i) => {
     const color = colors[i % colors.length]
+    // In multi-metric mode, scale was already applied during fetch
+    const scale = isMulti ? 1 : props.scale
     return {
       label: series.label || props.title,
-      data: series.points.map(p => ({ x: new Date(p.timestamp), y: p.value * props.scale })),
+      data: series.points.map(p => ({ x: new Date(p.timestamp), y: p.value * scale })),
       borderColor: color.border,
       backgroundColor: props.fill ? color.bg : 'transparent',
       borderWidth: 2,
@@ -160,11 +165,31 @@ const fetchData = async () => {
   error.value = null
   try {
     const { from, to } = getDurationParams()
-    const resp = await fetch(`/api/v1/models/${props.modelId}/metrics/${props.metricName}?from=${from}&to=${to}`)
-    if (resp.ok) {
-      seriesData.value = await resp.json()
+
+    if (props.metricNames && props.metricNames.length > 0) {
+      // Multi-metric mode: fetch each metric and combine as labeled series
+      const results = await Promise.all(
+        props.metricNames.map(async (m) => {
+          const resp = await fetch(`/api/v1/models/${props.modelId}/metrics/${m.name}?from=${from}&to=${to}`)
+          if (!resp.ok) return []
+          const series = await resp.json()
+          const scale = m.scale || props.scale
+          // Flatten and relabel: each metric becomes one series with the given label
+          return series.map(s => ({
+            label: s.label || m.label || m.name,
+            points: s.points.map(p => ({ timestamp: p.timestamp, value: p.value * scale }))
+          }))
+        })
+      )
+      seriesData.value = results.flat()
     } else {
-      error.value = 'Failed to load data'
+      // Single metric mode (original behavior)
+      const resp = await fetch(`/api/v1/models/${props.modelId}/metrics/${props.metricName}?from=${from}&to=${to}`)
+      if (resp.ok) {
+        seriesData.value = await resp.json()
+      } else {
+        error.value = 'Failed to load data'
+      }
     }
   } catch (e) {
     error.value = 'Failed to load data'

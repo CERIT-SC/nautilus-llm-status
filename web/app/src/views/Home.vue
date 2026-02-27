@@ -24,7 +24,7 @@
           <h2 class="text-lg font-semibold">Online ({{ onlineModels.length }})</h2>
         </div>
         <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          <ModelCard v-for="m in onlineModels" :key="m.id" :model="m" />
+          <ModelCard v-for="m in onlineModels" :key="m.id" :model="m" :metricsMeta="summaryMeta" />
         </div>
       </section>
 
@@ -35,7 +35,7 @@
           <h2 class="text-lg font-semibold">Temporarily Down ({{ downModels.length }})</h2>
         </div>
         <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          <ModelCard v-for="m in downModels" :key="m.id" :model="m" />
+          <ModelCard v-for="m in downModels" :key="m.id" :model="m" :metricsMeta="summaryMeta" />
         </div>
       </section>
 
@@ -48,7 +48,7 @@
           <h2 class="text-lg font-semibold text-muted-foreground">Archived ({{ archivedModels.length }})</h2>
         </div>
         <div v-if="showArchived" class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          <ModelCard v-for="m in archivedModels" :key="m.id" :model="m" />
+          <ModelCard v-for="m in archivedModels" :key="m.id" :model="m" :metricsMeta="summaryMeta" />
         </div>
       </section>
     </div>
@@ -62,10 +62,12 @@ import Loading from '@/components/Loading.vue'
 import ModelCard from '@/components/ModelCard.vue'
 
 const models = ref([])
+const metricsMeta = ref([])
 const loading = ref(true)
 const showArchived = ref(false)
 let refreshInterval = null
 
+const summaryMeta = computed(() => metricsMeta.value.filter(m => m.summary))
 const onlineModels = computed(() => models.value.filter(m => m.status === 'online'))
 const downModels = computed(() => models.value.filter(m => m.status === 'down'))
 const archivedModels = computed(() => models.value.filter(m => m.status === 'archived'))
@@ -83,7 +85,17 @@ const fetchModels = async () => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // Fetch metrics-meta once (it's static config)
+  try {
+    const resp = await fetch('/api/v1/metrics-meta')
+    if (resp.ok) {
+      metricsMeta.value = await resp.json()
+    }
+  } catch (e) {
+    console.error('Failed to fetch metrics meta:', e)
+  }
+
   fetchModels()
   refreshInterval = setInterval(fetchModels, 30000)
 })

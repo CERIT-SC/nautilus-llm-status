@@ -67,68 +67,33 @@
           </div>
         </div>
 
-        <!-- Charts -->
+        <!-- Dynamic Charts from metrics-meta -->
         <div class="grid gap-6 lg:grid-cols-2">
-          <Card>
+          <Card v-for="chart in chartConfigs" :key="chart.key"
+                :class="{ 'lg:col-span-2': isWideChart(chart) }">
             <CardHeader>
-              <CardTitle class="text-base">Running Requests</CardTitle>
+              <CardTitle class="text-base">{{ chart.title }}</CardTitle>
             </CardHeader>
             <CardContent>
-              <MetricsChart :modelId="modelId" metricName="num_requests_running" title="Running" :duration="duration" />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-base">Waiting Requests</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MetricsChart :modelId="modelId" metricName="num_requests_waiting" title="Waiting" :duration="duration" />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-base">KV Cache Usage</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MetricsChart :modelId="modelId" metricName="kv_cache_usage_perc" title="KV Cache" unit="%" :scale="100" :duration="duration" />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-base">Token Generation Rate</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MetricsChart :modelId="modelId" metricName="generation_tokens_rate" title="Throughput" unit="tok/s" :duration="duration" />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-base">Latency (P50 / P99)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MetricsChart :modelId="modelId" metricName="latency_seconds" title="Latency" unit="s" :duration="duration" />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-base">GPU Count by Type</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MetricsChart :modelId="modelId" metricName="gpu_count" title="GPUs" :duration="duration" :fill="false" />
-            </CardContent>
-          </Card>
-
-          <Card class="lg:col-span-2">
-            <CardHeader>
-              <CardTitle class="text-base">GPU Utilization by Type</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MetricsChart :modelId="modelId" metricName="gpu_utilization" title="GPU Util" unit="%" :duration="duration" />
+              <!-- Combined multi-metric chart (e.g. latency P50 + P99) -->
+              <MetricsChart v-if="chart.metricNames"
+                :modelId="modelId"
+                :metricNames="chart.metricNames"
+                :title="chart.title"
+                :unit="chart.unit"
+                :duration="duration"
+                :fill="false"
+              />
+              <!-- Single metric chart -->
+              <MetricsChart v-else
+                :modelId="modelId"
+                :metricName="chart.storageName"
+                :title="chart.title"
+                :unit="chart.unit"
+                :scale="chart.scale"
+                :duration="duration"
+                :fill="!chart.hasLabels"
+              />
             </CardContent>
           </Card>
         </div>
@@ -153,6 +118,7 @@ import Loading from '@/components/Loading.vue'
 
 const route = useRoute()
 const model = ref(null)
+const metricsMeta = ref([])
 const duration = ref('24h')
 
 const modelId = computed(() => parseInt(route.params.id))
@@ -162,6 +128,49 @@ const gpuSummary = computed(() => {
   if (!gpus || typeof gpus !== 'object') return null
   return Object.entries(gpus).map(([name, count]) => `${Math.round(count)}x ${name}`).join(', ')
 })
+
+// Build chart configurations, grouping latency_p* into a combined chart
+const chartConfigs = computed(() => {
+  const configs = []
+  const latencyMetrics = []
+
+  for (const m of metricsMeta.value) {
+    if (m.storage_name.startsWith('latency_p')) {
+      latencyMetrics.push(m)
+    } else {
+      configs.push({
+        key: m.storage_name,
+        title: m.display_name,
+        storageName: m.storage_name,
+        unit: m.unit || '',
+        scale: m.display_scale || 1,
+        hasLabels: m.has_labels,
+      })
+    }
+  }
+
+  // Combine latency percentiles into one overlaid chart
+  if (latencyMetrics.length > 0) {
+    configs.push({
+      key: 'latency_combined',
+      title: 'Latency (' + latencyMetrics.map(m => m.display_name.replace('Latency ', '')).join(' / ') + ')',
+      unit: latencyMetrics[0].unit || 's',
+      metricNames: latencyMetrics.map(m => ({
+        name: m.storage_name,
+        label: m.display_name.replace('Latency ', ''),
+        scale: m.display_scale || 1,
+      })),
+    })
+  }
+
+  return configs
+})
+
+// Make the last chart span full width if odd number of charts
+const isWideChart = (chart) => {
+  const idx = chartConfigs.value.indexOf(chart)
+  return chartConfigs.value.length % 2 === 1 && idx === chartConfigs.value.length - 1
+}
 
 const formatDate = (iso) => {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
@@ -180,13 +189,19 @@ const timeAgo = (iso) => {
 
 onMounted(async () => {
   try {
-    const resp = await fetch('/api/v1/models')
-    if (resp.ok) {
-      const models = await resp.json()
+    const [modelsResp, metaResp] = await Promise.all([
+      fetch('/api/v1/models'),
+      fetch('/api/v1/metrics-meta')
+    ])
+    if (modelsResp.ok) {
+      const models = await modelsResp.json()
       model.value = models.find(m => m.id === modelId.value)
     }
+    if (metaResp.ok) {
+      metricsMeta.value = await metaResp.json()
+    }
   } catch (e) {
-    console.error('Failed to fetch model:', e)
+    console.error('Failed to fetch data:', e)
   }
 })
 </script>

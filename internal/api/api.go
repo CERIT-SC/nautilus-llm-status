@@ -13,20 +13,16 @@ import (
 	"github.com/nautilus-llm-status/internal/storage"
 )
 
-// summaryMetrics are fetched for model cards on the home page.
-// Scalar metrics (single value per model) go in scalarMetrics.
-// Labeled metrics (multiple labels, e.g. GPU types) go in labeledMetrics.
-var (
-	scalarMetrics  = []string{"num_requests_running", "num_requests_waiting", "kv_cache_usage_perc", "generation_tokens_rate"}
-	labeledMetrics = []string{"gpu_count"}
-	allSummaryMetrics = append(append([]string{}, scalarMetrics...), labeledMetrics...)
-)
-
 type Server struct {
 	store   *storage.Store
 	scraper *scraper.Scraper
 	cfg     *config.Config
 	mux     *http.ServeMux
+
+	// Derived from config at construction time
+	scalarSummary  []string // summary metrics without LabelKey
+	labeledSummary []string // summary metrics with LabelKey
+	allSummary     []string // scalarSummary + labeledSummary
 }
 
 func New(store *storage.Store, scraper *scraper.Scraper, cfg *config.Config) *Server {
@@ -36,6 +32,20 @@ func New(store *storage.Store, scraper *scraper.Scraper, cfg *config.Config) *Se
 		cfg:     cfg,
 		mux:     http.NewServeMux(),
 	}
+
+	// Derive summary metric lists from config rules
+	for _, rule := range cfg.Metrics.ScrapeRules {
+		if !rule.Summary {
+			continue
+		}
+		if rule.LabelKey != "" {
+			s.labeledSummary = append(s.labeledSummary, rule.StorageName)
+		} else {
+			s.scalarSummary = append(s.scalarSummary, rule.StorageName)
+		}
+	}
+	s.allSummary = append(append([]string{}, s.scalarSummary...), s.labeledSummary...)
+
 	s.routes()
 	return s
 }
@@ -48,6 +58,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/v1/config", s.handleConfig)
 	s.mux.HandleFunc("/api/v1/models", s.handleModels)
 	s.mux.HandleFunc("/api/v1/models/", s.handleModelRoute)
+	s.mux.HandleFunc("/api/v1/metrics-meta", s.handleMetricsMeta)
 	s.mux.HandleFunc("/api/v1/health", s.handleHealth)
 }
 
@@ -63,6 +74,30 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		"header": s.cfg.UI.Header,
 		"logo":   s.cfg.UI.Logo,
 	})
+}
+
+type metricMeta struct {
+	StorageName  string  `json:"storage_name"`
+	DisplayName  string  `json:"display_name"`
+	Unit         string  `json:"unit,omitempty"`
+	DisplayScale float64 `json:"display_scale,omitempty"`
+	HasLabels    bool    `json:"has_labels"`
+	Summary      bool    `json:"summary"`
+}
+
+func (s *Server) handleMetricsMeta(w http.ResponseWriter, r *http.Request) {
+	var metrics []metricMeta
+	for _, rule := range s.cfg.Metrics.ScrapeRules {
+		metrics = append(metrics, metricMeta{
+			StorageName:  rule.StorageName,
+			DisplayName:  rule.DisplayName,
+			Unit:         rule.Unit,
+			DisplayScale: rule.DisplayScale,
+			HasLabels:    rule.LabelKey != "",
+			Summary:      rule.Summary,
+		})
+	}
+	writeJSON(w, metrics)
 }
 
 type modelResponse struct {
@@ -85,7 +120,7 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Single batch query for all latest metrics across all models
-	latestAll, err := s.store.GetAllLatestMetrics(allSummaryMetrics)
+	latestAll, err := s.store.GetAllLatestMetrics(s.allSummary)
 	if err != nil {
 		log.Printf("[api] batch latest metrics error: %v", err)
 		// Continue without latest data rather than failing
@@ -116,7 +151,7 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 
 		if latestAll != nil {
 			modelMetrics := latestAll[m.ID]
-			for _, metric := range scalarMetrics {
+			for _, metric := range s.scalarSummary {
 				if vals, ok := modelMetrics[metric]; ok && len(vals) > 0 {
 					if v, exists := vals[""]; exists {
 						mr.Latest[metric] = v
@@ -125,7 +160,7 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
-			for _, metric := range labeledMetrics {
+			for _, metric := range s.labeledSummary {
 				if vals, ok := modelMetrics[metric]; ok && len(vals) > 0 {
 					mr.Latest[metric] = vals
 				}

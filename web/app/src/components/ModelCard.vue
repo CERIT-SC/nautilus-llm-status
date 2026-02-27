@@ -13,23 +13,11 @@
         <StatusDot :status="model.status" />
       </div>
 
-      <!-- Quick Stats -->
-      <div v-if="model.status !== 'archived'" class="grid grid-cols-2 gap-2 text-xs">
-        <div v-if="latestRunning !== null" class="bg-muted/50 rounded px-2 py-1.5">
-          <span class="text-muted-foreground">Running</span>
-          <p class="font-mono font-medium">{{ latestRunning }}</p>
-        </div>
-        <div v-if="latestWaiting !== null" class="bg-muted/50 rounded px-2 py-1.5">
-          <span class="text-muted-foreground">Waiting</span>
-          <p class="font-mono font-medium">{{ latestWaiting }}</p>
-        </div>
-        <div v-if="latestKV !== null" class="bg-muted/50 rounded px-2 py-1.5">
-          <span class="text-muted-foreground">KV Cache</span>
-          <p class="font-mono font-medium">{{ latestKV }}%</p>
-        </div>
-        <div v-if="gpuSummary" class="bg-muted/50 rounded px-2 py-1.5">
-          <span class="text-muted-foreground">GPUs</span>
-          <p class="font-mono font-medium truncate">{{ gpuSummary }}</p>
+      <!-- Quick Stats (dynamic from metricsMeta) -->
+      <div v-if="model.status !== 'archived' && stats.length > 0" class="grid grid-cols-2 gap-2 text-xs">
+        <div v-for="stat in stats" :key="stat.name" class="bg-muted/50 rounded px-2 py-1.5">
+          <span class="text-muted-foreground">{{ stat.label }}</span>
+          <p class="font-mono font-medium truncate">{{ stat.display }}</p>
         </div>
       </div>
 
@@ -46,28 +34,44 @@ import { computed } from 'vue'
 import StatusDot from './StatusDot.vue'
 
 const props = defineProps({
-  model: { type: Object, required: true }
+  model: { type: Object, required: true },
+  metricsMeta: { type: Array, default: () => [] }
 })
 
-const latestRunning = computed(() => {
-  const v = props.model.latest?.num_requests_running
-  return v !== undefined ? Math.round(v) : null
-})
+const stats = computed(() => {
+  const result = []
+  for (const meta of props.metricsMeta) {
+    const raw = props.model.latest?.[meta.storage_name]
+    if (raw === undefined || raw === null) continue
 
-const latestWaiting = computed(() => {
-  const v = props.model.latest?.num_requests_waiting
-  return v !== undefined ? Math.round(v) : null
-})
-
-const latestKV = computed(() => {
-  const v = props.model.latest?.kv_cache_usage_perc
-  return v !== undefined ? (v * 100).toFixed(1) : null
-})
-
-const gpuSummary = computed(() => {
-  const gpus = props.model.latest?.gpu_count
-  if (!gpus || typeof gpus !== 'object') return null
-  return Object.entries(gpus).map(([name, count]) => `${Math.round(count)}x ${name}`).join(', ')
+    if (meta.has_labels) {
+      // Labeled metric (e.g. gpu_count): show as "2x A100, 4x H100"
+      if (typeof raw === 'object') {
+        const display = Object.entries(raw)
+          .map(([name, count]) => `${Math.round(count)}x ${name}`)
+          .join(', ')
+        if (display) {
+          result.push({ name: meta.storage_name, label: meta.display_name, display })
+        }
+      }
+    } else {
+      // Scalar metric: apply display_scale and unit
+      const scale = meta.display_scale || 1
+      const val = raw * scale
+      let display
+      if (meta.unit === '%') {
+        display = `${val.toFixed(1)}%`
+      } else if (meta.unit === 's') {
+        display = `${val.toFixed(2)}s`
+      } else if (meta.unit) {
+        display = `${val.toFixed(1)} ${meta.unit}`
+      } else {
+        display = `${Math.round(val)}`
+      }
+      result.push({ name: meta.storage_name, label: meta.display_name, display })
+    }
+  }
+  return result
 })
 
 const timeAgo = (iso) => {
