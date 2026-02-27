@@ -9,12 +9,13 @@ import (
 )
 
 type Config struct {
-	Prometheus PrometheusConfig `yaml:"prometheus"`
-	Storage    StorageConfig    `yaml:"storage"`
-	Metrics    MetricsConfig    `yaml:"metrics"`
-	Compaction CompactionConfig `yaml:"compaction"`
-	UI         UIConfig         `yaml:"ui"`
-	Models     ModelsConfig     `yaml:"models"`
+	Prometheus  PrometheusConfig `yaml:"prometheus"`
+	Storage     StorageConfig    `yaml:"storage"`
+	Metrics     MetricsConfig    `yaml:"metrics"`
+	Compaction  CompactionConfig `yaml:"compaction"`
+	UI          UIConfig         `yaml:"ui"`
+	Models      ModelsConfig     `yaml:"models"`
+	BackupToken string           `yaml:"backup_token"`
 }
 
 type PrometheusConfig struct {
@@ -193,6 +194,9 @@ func Load(path string) (*Config, error) {
 			cfg.UI.Port = p
 		}
 	}
+	if v := os.Getenv("BACKUP_TOKEN"); v != "" {
+		cfg.BackupToken = v
+	}
 
 	if path == "" {
 		return cfg, nil
@@ -221,6 +225,9 @@ func Load(path string) (*Config, error) {
 		if p, err := strconv.Atoi(v); err == nil {
 			cfg.UI.Port = p
 		}
+	}
+	if v := os.Getenv("BACKUP_TOKEN"); v != "" {
+		cfg.BackupToken = v
 	}
 
 	return cfg, nil

@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: llm-status-manager
+  namespace: deep-point-process
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: llm-status-manager
+  namespace: deep-point-process
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  resourceNames: ["nautilus-llm-status"]
+  verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: llm-status-manager
+  namespace: deep-point-process
+subjects:
+- kind: ServiceAccount
+  name: llm-status-manager
+  namespace: deep-point-process
+roleRef:
+  kind: Role
+  name: llm-status-manager
+  apiGroup: rbac.authorization.k8s.io

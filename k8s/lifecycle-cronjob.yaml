@@ -1,0 +1,147 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: llm-status-lifecycle
+  namespace: deep-point-process
+  labels:
+    app: nautilus-llm-status
+    component: lifecycle
+spec:
+  # Run daily at 05:00 UTC — script checks pod age, only acts if >= 13 days
+  schedule: "0 5 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 600
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            component: lifecycle
+        spec:
+          serviceAccountName: llm-status-manager
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          restartPolicy: OnFailure
+
+          initContainers:
+          - name: fetch-mc
+            image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+            command: ["/bin/sh", "-c"]
+            args: ["cp /usr/bin/mc /tools/mc"]
+            volumeMounts:
+            - name: tools
+              mountPath: /tools
+            resources:
+              requests:
+                cpu: 100m
+                memory: 64Mi
+              limits:
+                cpu: 100m
+                memory: 64Mi
+
+          containers:
+          - name: lifecycle
+            image: bitnami/kubectl@sha256:fd0cffa1252d718a561fee455ea5ae88781acbf31e59171ce7160ff762aa2980
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+            command: ["/bin/bash", "-c"]
+            args:
+              - |
+                set -euo pipefail
+                TAG="[lifecycle]"
+                NS="deep-point-process"
+                MC=/tools/mc
+                # Cluster-internal Service DNS — traffic stays within K8s pod network,
+                # never traverses public internet. TLS terminates at ingress for external access.
+                SVC="http://llm-status-service.deep-point-process.svc.cluster.local:8080"
+                MAX_AGE_DAYS=13
+
+                echo "$TAG Checking pod age at $(date -u)"
+
+                # Find the running pod
+                POD=$(kubectl get pod -n "$NS" -l app=nautilus-llm-status \
+                      --field-selector=status.phase=Running \
+                      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+                if [ -z "$POD" ]; then
+                  echo "$TAG No running pod found, nothing to do"
+                  exit 0
+                fi
+
+                # Get pod creation time
+                CREATED=$(kubectl get pod -n "$NS" "$POD" \
+                          -o jsonpath='{.metadata.creationTimestamp}')
+                CREATED_TS=$(date -d "$CREATED" +%s)
+                NOW_TS=$(date +%s)
+                AGE_DAYS=$(( (NOW_TS - CREATED_TS) / 86400 ))
+
+                echo "$TAG Pod $POD created $CREATED ($AGE_DAYS days ago)"
+
+                if [ "$AGE_DAYS" -lt "$MAX_AGE_DAYS" ]; then
+                  REMAINING=$((MAX_AGE_DAYS - AGE_DAYS))
+                  echo "$TAG Pod is $AGE_DAYS days old, next restart in ~${REMAINING}d. Skipping."
+                  exit 0
+                fi
+
+                echo "$TAG Pod is $AGE_DAYS days old (>= $MAX_AGE_DAYS). Starting backup + restart..."
+                echo ""
+
+                # ---- Backup DB via consistent snapshot endpoint ----
+                echo "$TAG Downloading DB snapshot..."
+                curl -sf -o /tmp/nautilus-status.db -H "Authorization: Bearer $BACKUP_TOKEN" "$SVC/api/v1/backup" || \
+                  wget -q -O /tmp/nautilus-status.db --header="Authorization: Bearer $BACKUP_TOKEN" "$SVC/api/v1/backup"
+                SIZE=$(stat -c%s /tmp/nautilus-status.db 2>/dev/null || echo "?")
+                echo "$TAG DB snapshot: $SIZE bytes"
+
+                $MC --config-dir /tmp/mc alias set nautilus "$S3_ENDPOINT" "$S3_ACCESS_KEY" "$S3_SECRET_KEY"
+
+                TS=$(date -u +%Y%m%d-%H%M%S)
+                $MC --config-dir /tmp/mc cp /tmp/nautilus-status.db "nautilus/$S3_BUCKET/backups/nautilus-status-${TS}.db"
+                $MC --config-dir /tmp/mc cp /tmp/nautilus-status.db "nautilus/$S3_BUCKET/nautilus-status.db"
+                echo "$TAG Backup uploaded: nautilus-status-${TS}.db"
+                echo ""
+
+                # ---- Rollout restart ----
+                echo "$TAG Restarting deployment..."
+                kubectl rollout restart deployment/nautilus-llm-status -n "$NS"
+                kubectl rollout status deployment/nautilus-llm-status -n "$NS" --timeout=300s
+
+                # Verify new pod
+                NEW_POD=$(kubectl get pod -n "$NS" -l app=nautilus-llm-status \
+                          --field-selector=status.phase=Running \
+                          -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+                echo ""
+                echo "$TAG Restart complete. New pod: $NEW_POD"
+                echo "$TAG Next restart in ~${MAX_AGE_DAYS} days"
+                echo "$TAG Done at $(date -u)"
+
+            envFrom:
+            - secretRef:
+                name: llm-status-s3-credentials
+            volumeMounts:
+            - name: tools
+              mountPath: /tools
+            resources:
+              requests:
+                cpu: 200m
+                memory: 256Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+
+          volumes:
+          - name: tools
+            emptyDir: {}

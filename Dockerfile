@@ -15,9 +15,11 @@ COPY --from=frontend /build/web/static/ /build/web/static/
 RUN CGO_ENABLED=1 go build -o nautilus-status ./cmd/main.go
 
 FROM alpine:3.19
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates && \
+    addgroup -g 1000 app && adduser -u 1000 -G app -D app && \
+    mkdir -p /data && chown app:app /data
 WORKDIR /app
 COPY --from=backend /build/nautilus-status .
-RUN mkdir -p /data
+USER 1000
 EXPOSE 8080
 ENTRYPOINT ["./nautilus-status"]

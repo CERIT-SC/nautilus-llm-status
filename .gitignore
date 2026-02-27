@@ -1,5 +1,6 @@
 # Binary
 nautilus-status
+nautilus-llm-status
 
 # Context (contains sensitive info)
 CONTEXT.md
@@ -22,6 +23,12 @@ web/static/
 
 # OS
 .DS_Store
+
+# K8s secrets (real credentials)
+k8s/secrets.yaml
+
+# Internal docs
+docs/
 
 # Claude
 .claude/

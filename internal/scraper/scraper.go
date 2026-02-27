@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nautilus-llm-status/internal/cache"
 	"github.com/nautilus-llm-status/internal/config"
 	"github.com/nautilus-llm-status/internal/storage"
 )
@@ -14,16 +15,18 @@ import (
 type Scraper struct {
 	prom    *PromClient
 	store   *storage.Store
+	cache   *cache.Cache
 	cfg     *config.Config
 	mu      sync.RWMutex
 	healthy bool
 	lastOK  time.Time
 }
 
-func New(prom *PromClient, store *storage.Store, cfg *config.Config) *Scraper {
+func New(prom *PromClient, store *storage.Store, c *cache.Cache, cfg *config.Config) *Scraper {
 	return &Scraper{
 		prom:  prom,
 		store: store,
+		cache: c,
 		cfg:   cfg,
 	}
 }
@@ -42,11 +45,16 @@ func (s *Scraper) LastSuccess() time.Time {
 
 func (s *Scraper) setHealth(healthy bool) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.healthy = healthy
 	if healthy {
 		s.lastOK = time.Now().UTC()
 	}
+	scraperHealthy := s.healthy
+	scraperLastOK := s.lastOK
+	s.mu.Unlock()
+
+	// Also update cache health snapshot
+	s.cache.UpdateHealth(scraperHealthy, scraperLastOK, healthy, scraperLastOK)
 }
 
 type modelInfo struct {
@@ -56,12 +64,17 @@ type modelInfo struct {
 }
 
 // Run starts the periodic scraper. Blocks until done channel is closed.
+// Waits for the gap-filler goroutine to finish before returning.
 func (s *Scraper) Run(done <-chan struct{}) {
-	// Run gap filler first
-	s.fillGaps()
-
-	// Immediate first scrape
+	// Immediate first scrape (so health goes green fast)
 	s.scrape()
+
+	// Run gap filler in background (can take minutes for 7-day backfill)
+	gapsDone := make(chan struct{})
+	go func() {
+		s.fillGaps(done)
+		close(gapsDone)
+	}()
 
 	ticker := time.NewTicker(s.cfg.Prometheus.ScrapeInterval)
 	defer ticker.Stop()
@@ -73,6 +86,7 @@ func (s *Scraper) Run(done <-chan struct{}) {
 	for {
 		select {
 		case <-done:
+			<-gapsDone // Wait for gap-filler to finish before returning
 			return
 		case <-ticker.C:
 			s.scrape()
@@ -110,7 +124,6 @@ func (s *Scraper) scrape() {
 		s.store.RecordPrometheusHealth(false, int(latency.Milliseconds()), err.Error())
 		return
 	}
-	s.setHealth(true)
 	s.store.RecordPrometheusHealth(true, int(latency.Milliseconds()), "")
 
 	// Build model map and collect discovery metric rows
@@ -153,10 +166,39 @@ func (s *Scraper) scrape() {
 		s.scrapeRule(rule, models, now, &metricRows)
 	}
 
-	// Batch insert all metrics
+	// Batch insert all metrics — only update cache on success to prevent ghost data
 	if err := s.store.InsertMetricBatch(metricRows); err != nil {
 		log.Printf("[scraper] batch insert error: %v", err)
+		s.setHealth(false)
+		return
 	}
+	s.setHealth(true)
+
+	// Feed cache with scrape results (DB write succeeded)
+	cacheModels := make(map[string]cache.ModelInfo)
+	for key, m := range models {
+		cacheModels[key] = cache.ModelInfo{
+			ID: m.id, Namespace: m.namespace, Container: m.container,
+		}
+		// Propagate model_name from discovery results
+		for _, r := range results {
+			if r.Metric["namespace"]+"/"+r.Metric["container"] == key {
+				cacheModels[key] = cache.ModelInfo{
+					ID: m.id, Namespace: m.namespace, Container: m.container,
+					ModelName: r.Metric["model_name"],
+				}
+				break
+			}
+		}
+	}
+	s.cache.IngestScrapeResults(&cache.ScrapeResult{
+		Timestamp: now,
+		Models:    cacheModels,
+		Rows:      metricRows,
+	})
+
+	// Update health cache
+	s.cache.UpdateHealth(s.IsHealthy(), s.LastSuccess(), true, now)
 }
 
 // scrapeRule runs a single ScrapeRule instant query and appends results.
@@ -189,11 +231,10 @@ func (s *Scraper) scrapeRule(rule config.ScrapeRule, models map[string]modelInfo
 	}
 }
 
-func (s *Scraper) fillGaps() {
-	log.Println("[gap-filler] checking for gaps...")
+func (s *Scraper) fillGaps(done <-chan struct{}) {
 	rules := s.cfg.Metrics.ScrapeRules
 	now := time.Now().UTC()
-	sevenDaysAgo := now.Add(-7 * 24 * time.Hour)
+	fillFrom := now.Add(-7 * 24 * time.Hour)
 
 	disc := discoveryRule(rules)
 	if disc == nil {
@@ -201,29 +242,22 @@ func (s *Scraper) fillGaps() {
 		return
 	}
 
-	// Find the newest stored timestamp from the discovery metric
-	newest, err := s.store.GetNewestMetricTimestamp(disc.StorageName)
-	if err != nil {
-		log.Printf("[gap-filler] error getting newest timestamp: %v", err)
-	}
-
-	var fillFrom time.Time
-	if newest.IsZero() {
-		fillFrom = sevenDaysAgo
-		log.Println("[gap-filler] no existing data, backfilling 7 days")
-	} else if newest.Before(now.Add(-time.Minute)) {
-		fillFrom = newest
-		log.Printf("[gap-filler] filling gap from %s to now", fillFrom.Format(time.RFC3339))
-	} else {
-		log.Println("[gap-filler] no gap detected")
-		return
-	}
+	log.Println("[gap-filler] backfilling 7 days from Prometheus...")
 
 	// Backfill in 1-hour chunks, newest first
 	chunkSize := time.Hour
 	backoff := time.Second
 
+	chunksProcessed := 0
 	for end := now; end.After(fillFrom); end = end.Add(-chunkSize) {
+		// Check for shutdown
+		select {
+		case <-done:
+			log.Println("[gap-filler] shutdown requested, stopping")
+			return
+		default:
+		}
+
 		start := end.Add(-chunkSize)
 		if start.Before(fillFrom) {
 			start = fillFrom
@@ -237,12 +271,28 @@ func (s *Scraper) fillGaps() {
 			continue
 		}
 		backoff = time.Second // reset on success
+		chunksProcessed++
+
+		// Rehydrate uptime from SQLite every 6 chunks (~6 hours of data)
+		// so the UI fills in progressively rather than staying all-red
+		if chunksProcessed%6 == 0 {
+			s.cache.Rehydrate(s.store)
+		}
+
+		// Yield between chunks so write contention is minimized
+		time.Sleep(500 * time.Millisecond)
 	}
+
+	// Final rehydrate after all backfill is done
+	s.cache.Rehydrate(s.store)
 	log.Println("[gap-filler] done")
 }
 
 func (s *Scraper) backfillChunk(rules []config.ScrapeRule, start, end time.Time) error {
-	step := 30 * time.Second
+	step := s.cfg.Prometheus.ScrapeInterval
+	if step <= 0 {
+		step = 30 * time.Second
+	}
 
 	disc := discoveryRule(rules)
 	if disc == nil {
@@ -332,7 +382,8 @@ func (s *Scraper) backfillChunk(rules []config.ScrapeRule, start, end time.Time)
 		}
 	}
 
-	// Insert in batches of 10k to bound memory
+	// Insert in batches of 10k to bound memory.
+	// Sleep between batches to reduce WAL lock contention with read queries.
 	const batchSize = 10000
 	for i := 0; i < len(allRows); i += batchSize {
 		batchEnd := i + batchSize
@@ -341,6 +392,9 @@ func (s *Scraper) backfillChunk(rules []config.ScrapeRule, start, end time.Time)
 		}
 		if err := s.store.InsertMetricBatch(allRows[i:batchEnd]); err != nil {
 			return fmt.Errorf("batch insert: %w", err)
+		}
+		if batchEnd < len(allRows) {
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 	return nil
@@ -353,8 +407,7 @@ func (s *Scraper) compact() {
 		log.Printf("[compaction] error: %v", err)
 		return
 	}
-	if err := s.store.Vacuum(); err != nil {
-		log.Printf("[compaction] vacuum error: %v", err)
-	}
+	// No VACUUM here — it blocks the DB for too long.
+	// Space is reclaimed via incremental auto_vacuum (set at DB open).
 	log.Println("[compaction] done")
 }

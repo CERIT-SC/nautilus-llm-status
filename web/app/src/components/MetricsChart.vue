@@ -39,6 +39,7 @@ const loading = ref(true)
 const error = ref(null)
 const seriesData = ref([])
 const isDark = ref(document.documentElement.classList.contains('dark'))
+let abortController = null
 
 const colors = [
   { border: 'rgb(59, 130, 246)', bg: 'rgba(59, 130, 246, 0.1)' },
@@ -133,6 +134,7 @@ const chartOptions = computed(() => {
         callbacks: {
           label: (ctx) => {
             const val = ctx.parsed.y
+            if (val == null) return null
             if (props.unit === '%') return `${ctx.dataset.label}: ${val.toFixed(1)}%`
             if (props.unit === 's') return `${ctx.dataset.label}: ${val.toFixed(2)}s`
             if (props.unit === 'tok/s') return `${ctx.dataset.label}: ${val.toFixed(1)} tok/s`
@@ -178,29 +180,23 @@ const chartOptions = computed(() => {
   }
 })
 
-const getDurationParams = () => {
-  const to = new Date()
-  let from
-  switch (props.duration) {
-    case '3h': from = new Date(to.getTime() - 3 * 60 * 60 * 1000); break
-    case '7d': from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000); break
-    case '30d': from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000); break
-    default: from = new Date(to.getTime() - 24 * 60 * 60 * 1000)
-  }
-  return { from: from.toISOString(), to: to.toISOString() }
-}
-
 const fetchData = async () => {
+  // Cancel any in-flight request to prevent out-of-order updates
+  if (abortController) abortController.abort()
+  abortController = new AbortController()
+  const signal = abortController.signal
+
   loading.value = true
   error.value = null
   try {
-    const { from, to } = getDurationParams()
+    // Use discrete range parameter for cacheable URLs
+    const range = props.duration || '24h'
 
     if (props.metricNames && props.metricNames.length > 0) {
       // Multi-metric mode: fetch each metric and combine as labeled series
       const results = await Promise.all(
         props.metricNames.map(async (m) => {
-          const resp = await fetch(`/api/v1/models/${props.modelId}/metrics/${m.name}?from=${from}&to=${to}`)
+          const resp = await fetch(`/api/v1/models/${props.modelId}/metrics/${m.name}?range=${range}`, { signal })
           if (!resp.ok) return []
           const series = await resp.json()
           const scale = m.scale || props.scale
@@ -214,7 +210,7 @@ const fetchData = async () => {
       seriesData.value = results.flat()
     } else {
       // Single metric mode (original behavior)
-      const resp = await fetch(`/api/v1/models/${props.modelId}/metrics/${props.metricName}?from=${from}&to=${to}`)
+      const resp = await fetch(`/api/v1/models/${props.modelId}/metrics/${props.metricName}?range=${range}`, { signal })
       if (resp.ok) {
         seriesData.value = await resp.json()
       } else {
@@ -222,6 +218,7 @@ const fetchData = async () => {
       }
     }
   } catch (e) {
+    if (e.name === 'AbortError') return // Superseded by newer request
     error.value = 'Failed to load data'
   } finally {
     loading.value = false

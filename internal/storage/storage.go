@@ -3,6 +3,7 @@ package storage
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"sort"
 	"time"
 
@@ -33,13 +34,21 @@ type LabeledSeries struct {
 }
 
 func New(path string) (*Store, error) {
-	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL")
+	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_busy_timeout=30000&_synchronous=NORMAL")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("ping db: %w", err)
 	}
+
+	// Pool of 4: allows concurrent reads + 1 writer without starving
+	db.SetMaxOpenConns(4)
+	db.SetMaxIdleConns(4)
+
+	// Enable incremental auto-vacuum so space is reclaimed gradually
+	db.Exec("PRAGMA auto_vacuum = INCREMENTAL")
+
 	s := &Store{db: db}
 	if err := s.migrate(); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
@@ -49,6 +58,14 @@ func New(path string) (*Store, error) {
 
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+// BackupTo creates a consistent snapshot of the database at dstPath.
+// Uses VACUUM INTO which is safe to call while the DB is being written to.
+func (s *Store) BackupTo(dstPath string) error {
+	os.Remove(dstPath) // ensure clean target
+	_, err := s.db.Exec("VACUUM INTO ?", dstPath)
+	return err
 }
 
 func (s *Store) migrate() error {
@@ -76,6 +93,8 @@ func (s *Store) migrate() error {
 			ON metrics(model_id, metric_name, timestamp);
 		CREATE INDEX IF NOT EXISTS idx_metrics_compaction
 			ON metrics(timestamp);
+		CREATE INDEX IF NOT EXISTS idx_metrics_name_ts
+			ON metrics(metric_name, timestamp);
 
 		CREATE TABLE IF NOT EXISTS prometheus_health (
 			timestamp DATETIME NOT NULL,
@@ -83,6 +102,9 @@ func (s *Store) migrate() error {
 			latency_ms INTEGER,
 			error_message TEXT
 		);
+
+		CREATE INDEX IF NOT EXISTS idx_prom_health_ts
+			ON prometheus_health(timestamp);
 	`)
 	if err != nil {
 		return err
@@ -101,7 +123,8 @@ func (s *Store) UpsertModel(namespace, container, modelName string, ts time.Time
 		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(namespace, container) DO UPDATE SET
 			model_name = excluded.model_name,
-			last_seen = excluded.last_seen
+			first_seen = MIN(models.first_seen, excluded.first_seen),
+			last_seen = MAX(models.last_seen, excluded.last_seen)
 	`, namespace, container, modelName, ts, ts)
 	if err != nil {
 		return 0, err
@@ -212,6 +235,7 @@ func (s *Store) GetMetrics(modelID int64, metricName string, from, to time.Time)
 }
 
 // GetAllLatestMetrics fetches latest values for all models and specified metrics in one query.
+// Scans only the last hour of data to avoid full-table scans during heavy backfill writes.
 func (s *Store) GetAllLatestMetrics(metricNames []string) (map[int64]map[string]map[string]float64, error) {
 	if len(metricNames) == 0 {
 		return nil, nil
@@ -219,26 +243,31 @@ func (s *Store) GetAllLatestMetrics(metricNames []string) (map[int64]map[string]
 
 	// Build IN clause
 	placeholders := ""
-	args := make([]interface{}, len(metricNames))
+	args := make([]interface{}, 0, len(metricNames)+1)
 	for i, name := range metricNames {
 		if i > 0 {
 			placeholders += ","
 		}
 		placeholders += "?"
-		args[i] = name
+		args = append(args, name)
 	}
+	// Only scan recent data — latest values come from the most recent scrape
+	cutoff := time.Now().UTC().Add(-time.Hour)
+	args = append(args, cutoff)
 
 	rows, err := s.db.Query(`
-		SELECT m1.model_id, m1.metric_name, m1.label_key, m1.value
-		FROM metrics m1
+		SELECT m.model_id, m.metric_name, m.label_key, m.value
+		FROM metrics m
 		INNER JOIN (
 			SELECT model_id, metric_name, label_key, MAX(timestamp) as max_ts
-			FROM metrics WHERE metric_name IN (`+placeholders+`)
+			FROM metrics
+			WHERE metric_name IN (`+placeholders+`) AND timestamp >= ?
 			GROUP BY model_id, metric_name, label_key
-		) m2 ON m1.model_id = m2.model_id AND m1.metric_name = m2.metric_name
-			AND m1.label_key = m2.label_key AND m1.timestamp = m2.max_ts
-		WHERE m1.metric_name IN (`+placeholders+`)
-	`, append(args, args...)...)
+		) latest ON m.model_id = latest.model_id
+			AND m.metric_name = latest.metric_name
+			AND m.label_key = latest.label_key
+			AND m.timestamp = latest.max_ts
+	`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -372,15 +401,22 @@ func (s *Store) Compact(rawRetention, mediumRetention, mediumRes, coarseRetentio
 		{mediumCutoff, coarseCutoff, mediumRes},
 		{coarseCutoff, deleteCutoff, coarseRes},
 	} {
+		// Use window function to keep exactly 1 row per (series, time-bucket).
+		// ROW_NUMBER partitions by series+bucket; we delete all but rn=1.
 		_, err := s.db.Exec(`
-			DELETE FROM metrics WHERE timestamp < ? AND timestamp >= ? AND
-			timestamp NOT IN (
-				SELECT MIN(timestamp) FROM metrics
-				WHERE timestamp < ? AND timestamp >= ?
-				GROUP BY model_id, metric_name, label_key,
-					CAST(strftime('%%s', timestamp) AS INTEGER) / ?
+			DELETE FROM metrics WHERE rowid IN (
+				SELECT rid FROM (
+					SELECT rowid AS rid,
+						ROW_NUMBER() OVER (
+							PARTITION BY model_id, metric_name, label_key,
+								CAST(strftime('%%s', timestamp) AS INTEGER) / ?
+							ORDER BY timestamp
+						) AS rn
+					FROM metrics
+					WHERE timestamp < ? AND timestamp >= ?
+				) WHERE rn > 1
 			)
-		`, c.olderThan, c.newerThan, c.olderThan, c.newerThan, int(c.resolution.Seconds()))
+		`, int(c.resolution.Seconds()), c.olderThan, c.newerThan)
 		if err != nil {
 			return fmt.Errorf("compact: %w", err)
 		}
@@ -391,7 +427,12 @@ func (s *Store) Compact(rawRetention, mediumRetention, mediumRes, coarseRetentio
 		return err
 	}
 
-	// Vacuum periodically (caller should do this infrequently)
+	// Prune prometheus_health: keep only 90 days
+	healthCutoff := now.Add(-90 * 24 * time.Hour)
+	if _, err := s.db.Exec("DELETE FROM prometheus_health WHERE timestamp < ?", healthCutoff); err != nil {
+		return fmt.Errorf("prune prometheus_health: %w", err)
+	}
+
 	return nil
 }
 

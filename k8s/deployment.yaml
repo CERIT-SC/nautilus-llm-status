@@ -1,0 +1,158 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nautilus-llm-status
+  namespace: deep-point-process
+  labels:
+    app: nautilus-llm-status
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nautilus-llm-status
+  template:
+    metadata:
+      labels:
+        app: nautilus-llm-status
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+      - name: restore-db
+        image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop: ["ALL"]
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -euo pipefail
+            echo "Restoring DB from S3..."
+            mc --config-dir /data/.mc alias set nautilus "$S3_ENDPOINT" "$S3_ACCESS_KEY" "$S3_SECRET_KEY"
+
+            # Distinguish "object not found" from real S3/auth/network errors.
+            # mc stat exits 1 for both; capture output to differentiate.
+            # Note: minio/mc image has no grep, so use shell case pattern matching.
+            STAT_OUT=$(mc --config-dir /data/.mc stat "nautilus/$S3_BUCKET/nautilus-status.db" 2>&1) && STAT_RC=0 || STAT_RC=$?
+            if [ "$STAT_RC" -eq 0 ]; then
+              mc --config-dir /data/.mc cp "nautilus/$S3_BUCKET/nautilus-status.db" /data/nautilus-status.db.tmp
+              SIZE=$(stat -c%s /data/nautilus-status.db.tmp 2>/dev/null || echo "0")
+              if [ "$SIZE" -lt 1024 ]; then
+                echo "ERROR: downloaded file too small ($SIZE bytes), refusing to use"
+                rm -f /data/nautilus-status.db.tmp
+                exit 1
+              fi
+              # Validate SQLite magic header (first 15 bytes must be "SQLite format 3")
+              MAGIC=$(dd if=/data/nautilus-status.db.tmp bs=15 count=1 2>/dev/null)
+              if [ "$MAGIC" != "SQLite format 3" ]; then
+                echo "ERROR: downloaded file is not a valid SQLite database (corrupt backup)"
+                rm -f /data/nautilus-status.db.tmp
+                echo "Starting fresh — gap-filler will backfill 7 days from Prometheus"
+              else
+                mv /data/nautilus-status.db.tmp /data/nautilus-status.db
+                echo "Restored $SIZE bytes"
+              fi
+            else
+              # Check if the error is "not found" using shell pattern matching (no grep needed)
+              case "$STAT_OUT" in
+                *"does not exist"*|*"not found"*|*"NoSuchKey"*|*"404"*)
+                  echo "No backup found in S3 — starting fresh (this is OK for first deploy)"
+                  ;;
+                *)
+                  echo "ERROR: S3 access failed (not a 'not found' error). Refusing to start with empty DB."
+                  echo "$STAT_OUT"
+                  exit 1
+                  ;;
+              esac
+            fi
+            # Clean up mc config (contains S3 credentials) from shared volume
+            rm -rf /data/.mc
+        envFrom:
+        - secretRef:
+            name: llm-status-s3-credentials
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+
+      containers:
+      - name: nautilus-llm-status
+        image: zihaokevinzhou/nautilus-llm-status@sha256:0435706bacd6bf2c6ec20359b8ff7a73f243a8df2714135012f0b824c031adee
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        ports:
+        - containerPort: 8080
+        startupProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          initialDelaySeconds: 2
+          periodSeconds: 5
+          failureThreshold: 30
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          periodSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          periodSeconds: 30
+          failureThreshold: 5
+        env:
+        - name: PROMETHEUS_URL
+          value: "https://prometheus.nrp-nautilus.io"
+        - name: DB_PATH
+          value: "/data/nautilus-status.db"
+        - name: BACKUP_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: llm-status-s3-credentials
+              key: BACKUP_TOKEN
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: "1"
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 512Mi
+
+      volumes:
+      - name: tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 64Mi
+      - name: data
+        # emptyDir: data survives container restarts but not pod rescheduling.
+        # Mitigations: (1) backup-cronjob runs every 2h uploading DB to S3,
+        # (2) init container restores latest S3 backup on pod start,
+        # (3) gap-filler backfills 7 days from Prometheus after restore.
+        # Net effect: max data loss ≈ 0 (Prometheus retains raw data).
+        emptyDir:
+          sizeLimit: 2Gi

@@ -107,7 +107,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -187,7 +187,7 @@ const timeAgo = (iso) => {
   return `${days}d ago`
 }
 
-onMounted(async () => {
+async function fetchData() {
   try {
     const [modelsResp, metaResp] = await Promise.all([
       fetch('/api/v1/models'),
@@ -203,5 +203,13 @@ onMounted(async () => {
   } catch (e) {
     console.error('Failed to fetch data:', e)
   }
+}
+
+onMounted(fetchData)
+
+// Refetch when navigating between models (component reuse)
+watch(() => route.params.id, () => {
+  model.value = null
+  fetchData()
 })
 </script>

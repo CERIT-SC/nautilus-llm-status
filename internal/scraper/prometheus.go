@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -59,7 +61,7 @@ func (c *PromClient) InstantQuery(query string) ([]PromResult, time.Duration, er
 		return nil, latency, fmt.Errorf("prometheus returned HTTP %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MiB limit
 	if err != nil {
 		return nil, latency, fmt.Errorf("read body: %w", err)
 	}
@@ -98,7 +100,7 @@ func (c *PromClient) RangeQuery(query string, start, end time.Time, step time.Du
 		return nil, fmt.Errorf("prometheus returned HTTP %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MiB limit
 	if err != nil {
 		return nil, fmt.Errorf("read body: %w", err)
 	}
@@ -128,9 +130,10 @@ func ParseValue(v [2]interface{}) (time.Time, float64, error) {
 	if !ok {
 		return time.Time{}, 0, fmt.Errorf("value not a string")
 	}
-	var val float64
-	if _, err := fmt.Sscanf(valStr, "%f", &val); err != nil {
+	val, err := strconv.ParseFloat(valStr, 64)
+	if err != nil {
 		return time.Time{}, 0, fmt.Errorf("parse value %q: %w", valStr, err)
 	}
-	return time.Unix(int64(ts), 0).UTC(), val, nil
+	sec, frac := math.Modf(ts)
+	return time.Unix(int64(sec), int64(frac*1e9)).UTC(), val, nil
 }

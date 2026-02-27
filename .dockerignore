@@ -1,0 +1,36 @@
+# Build artifacts
+nautilus-status
+nautilus-llm-status
+*.db
+*.db-journal
+*.db-wal
+
+# K8s manifests (may contain secrets)
+k8s/
+
+# Context (contains sensitive info)
+CONTEXT.md
+
+# Documentation
+docs/
+*.md
+!web/app/README.md
+
+# Node modules (npm ci in Docker handles this)
+web/app/node_modules/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Git / Claude
+.git/
+.gitignore
+.claude/
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
