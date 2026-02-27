@@ -1,0 +1,14 @@
+services:
+  nautilus-status:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - data:/data
+    environment:
+      - PROMETHEUS_URL=https://prometheus.nrp-nautilus.io
+      - DB_PATH=/data/nautilus-status.db
+    restart: unless-stopped
+
+volumes:
+  data:

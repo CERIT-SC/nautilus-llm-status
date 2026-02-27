@@ -1,0 +1,27 @@
+# Binary
+nautilus-status
+
+# Context (contains sensitive info)
+CONTEXT.md
+
+# Node
+web/app/node_modules/
+
+# Built static (regenerated from source)
+web/static/
+
+# SQLite
+*.db
+*.db-journal
+*.db-wal
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Claude
+.claude/

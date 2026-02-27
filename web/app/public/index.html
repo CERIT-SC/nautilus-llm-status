@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Nautilus LLM Status</title>
+    <script type="text/javascript">
+      window.config = { header: "Nautilus LLM Status" };
+      (function() {
+        const themeFromCookie = document.cookie.match(/theme=(dark|light);?/)?.[1];
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (themeFromCookie === 'dark' || (!themeFromCookie && prefersDark)) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+    </script>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="description" content="Nautilus LLM Service Status Monitor" />
+    <meta name="theme-color" content="#f7f9fb" />
+  </head>
+  <body>
+    <noscript><strong>Enable JavaScript to view this page.</strong></noscript>
+    <div id="app"></div>
+  </body>
+</html>

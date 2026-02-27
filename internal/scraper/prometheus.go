@@ -1,0 +1,136 @@
+package scraper
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"time"
+)
+
+type PromClient struct {
+	baseURL    string
+	httpClient *http.Client
+}
+
+func NewPromClient(baseURL string, timeout time.Duration) *PromClient {
+	return &PromClient{
+		baseURL: baseURL,
+		httpClient: &http.Client{
+			Timeout: timeout,
+		},
+	}
+}
+
+// InstantQuery runs a PromQL instant query and returns the raw result.
+type PromResult struct {
+	Metric map[string]string `json:"metric"`
+	Value  [2]interface{}    `json:"value"` // [timestamp, "value_string"]
+}
+
+type PromRangeResult struct {
+	Metric map[string]string `json:"metric"`
+	Values [][2]interface{}  `json:"values"` // [[timestamp, "value_string"], ...]
+}
+
+type promResponse struct {
+	Status string `json:"status"`
+	Data   struct {
+		ResultType string            `json:"resultType"`
+		Result     json.RawMessage   `json:"result"`
+	} `json:"data"`
+	Error     string `json:"error"`
+	ErrorType string `json:"errorType"`
+}
+
+func (c *PromClient) InstantQuery(query string) ([]PromResult, time.Duration, error) {
+	u := fmt.Sprintf("%s/api/v1/query?query=%s", c.baseURL, url.QueryEscape(query))
+
+	start := time.Now()
+	resp, err := c.httpClient.Get(u)
+	latency := time.Since(start)
+	if err != nil {
+		return nil, latency, fmt.Errorf("prometheus query: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, latency, fmt.Errorf("prometheus returned HTTP %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, latency, fmt.Errorf("read body: %w", err)
+	}
+
+	var pr promResponse
+	if err := json.Unmarshal(body, &pr); err != nil {
+		return nil, latency, fmt.Errorf("unmarshal: %w", err)
+	}
+	if pr.Status != "success" {
+		return nil, latency, fmt.Errorf("prometheus error: %s: %s", pr.ErrorType, pr.Error)
+	}
+
+	var results []PromResult
+	if err := json.Unmarshal(pr.Data.Result, &results); err != nil {
+		return nil, latency, fmt.Errorf("unmarshal results: %w", err)
+	}
+	return results, latency, nil
+}
+
+func (c *PromClient) RangeQuery(query string, start, end time.Time, step time.Duration) ([]PromRangeResult, error) {
+	u := fmt.Sprintf("%s/api/v1/query_range?query=%s&start=%s&end=%s&step=%s",
+		c.baseURL,
+		url.QueryEscape(query),
+		url.QueryEscape(start.Format(time.RFC3339)),
+		url.QueryEscape(end.Format(time.RFC3339)),
+		url.QueryEscape(fmt.Sprintf("%ds", int(step.Seconds()))),
+	)
+
+	resp, err := c.httpClient.Get(u)
+	if err != nil {
+		return nil, fmt.Errorf("prometheus range query: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("prometheus returned HTTP %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read body: %w", err)
+	}
+
+	var pr promResponse
+	if err := json.Unmarshal(body, &pr); err != nil {
+		return nil, fmt.Errorf("unmarshal: %w", err)
+	}
+	if pr.Status != "success" {
+		return nil, fmt.Errorf("prometheus error: %s: %s", pr.ErrorType, pr.Error)
+	}
+
+	var results []PromRangeResult
+	if err := json.Unmarshal(pr.Data.Result, &results); err != nil {
+		return nil, fmt.Errorf("unmarshal range results: %w", err)
+	}
+	return results, nil
+}
+
+// ParseValue extracts the float64 from a Prometheus value pair.
+func ParseValue(v [2]interface{}) (time.Time, float64, error) {
+	ts, ok := v[0].(float64)
+	if !ok {
+		return time.Time{}, 0, fmt.Errorf("timestamp not a float64")
+	}
+	valStr, ok := v[1].(string)
+	if !ok {
+		return time.Time{}, 0, fmt.Errorf("value not a string")
+	}
+	var val float64
+	if _, err := fmt.Sscanf(valStr, "%f", &val); err != nil {
+		return time.Time{}, 0, fmt.Errorf("parse value %q: %w", valStr, err)
+	}
+	return time.Unix(int64(ts), 0).UTC(), val, nil
+}
