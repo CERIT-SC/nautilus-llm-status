@@ -32,8 +32,44 @@ spec:
               type: RuntimeDefault
           restartPolicy: OnFailure
 
+          initContainers:
+          # Download DB snapshot using curl (minio/mc image lacks curl/wget)
+          - name: download
+            image: curlimages/curl:8.12.1
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eu
+                echo "[db-backup] Downloading DB snapshot..."
+                curl -sf -o /tmp/shared/nautilus-status.db \
+                  -H "Authorization: Bearer $BACKUP_TOKEN" \
+                  "http://llm-status-service.deep-point-process.svc.cluster.local:8080/api/v1/backup"
+                SIZE=$(stat -c%s /tmp/shared/nautilus-status.db 2>/dev/null || echo "?")
+                echo "[db-backup] Downloaded: $SIZE bytes"
+            env:
+            - name: BACKUP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: llm-status-s3-credentials
+                  key: BACKUP_TOKEN
+            volumeMounts:
+            - name: shared
+              mountPath: /tmp/shared
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 100m
+                memory: 128Mi
+
           containers:
-          - name: backup
+          # Upload to S3 using mc
+          - name: upload
             image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
             securityContext:
               allowPrivilegeEscalation: false
@@ -45,28 +81,15 @@ spec:
                 set -eu
                 TAG="[db-backup]"
 
-                echo "$TAG Starting at $(date -u)"
-
-                # Download consistent DB snapshot via backup endpoint.
-                # Uses cluster-internal Service DNS — traffic stays within K8s pod
-                # network, never traverses public internet. TLS terminates at ingress.
-                wget -q -O /tmp/nautilus-status.db \
-                  --header="Authorization: Bearer $BACKUP_TOKEN" \
-                  "http://llm-status-service.deep-point-process.svc.cluster.local:8080/api/v1/backup"
-                SIZE=$(stat -c%s /tmp/nautilus-status.db 2>/dev/null || echo "?")
-                echo "$TAG Downloaded DB snapshot ($SIZE bytes)"
-
-                # Upload to S3
                 mc --config-dir /tmp/mc alias set nautilus "$S3_ENDPOINT" "$S3_ACCESS_KEY" "$S3_SECRET_KEY"
 
                 TS=$(date -u +%Y%m%d-%H%M%S)
-                mc --config-dir /tmp/mc cp /tmp/nautilus-status.db "nautilus/$S3_BUCKET/backups/nautilus-status-${TS}.db"
-                mc --config-dir /tmp/mc cp /tmp/nautilus-status.db "nautilus/$S3_BUCKET/nautilus-status.db"
+                mc --config-dir /tmp/mc cp /tmp/shared/nautilus-status.db "nautilus/$S3_BUCKET/backups/nautilus-status-${TS}.db"
+                mc --config-dir /tmp/mc cp /tmp/shared/nautilus-status.db "nautilus/$S3_BUCKET/nautilus-status.db"
 
                 echo "$TAG Uploaded: nautilus-status-${TS}.db"
 
-                # Prune backups older than 7 days.
-                # minio/mc image has no grep/sed/head — use mc rm with --older-than.
+                # Prune backups older than 7 days
                 echo "$TAG Pruning backups older than 7 days..."
                 mc --config-dir /tmp/mc rm --older-than 168h --force "nautilus/$S3_BUCKET/backups/" || true
 
@@ -75,6 +98,9 @@ spec:
             envFrom:
             - secretRef:
                 name: llm-status-s3-credentials
+            volumeMounts:
+            - name: shared
+              mountPath: /tmp/shared
             resources:
               requests:
                 cpu: 100m
@@ -82,3 +108,7 @@ spec:
               limits:
                 cpu: 100m
                 memory: 256Mi
+
+          volumes:
+          - name: shared
+            emptyDir: {}

@@ -99,22 +99,30 @@ spec:
                 echo "$TAG Pod is $AGE_DAYS days old (>= $MAX_AGE_DAYS). Starting backup + restart..."
                 echo ""
 
-                # ---- Backup DB via consistent snapshot endpoint ----
-                echo "$TAG Downloading DB snapshot..."
-                curl -sf -o /tmp/nautilus-status.db -H "Authorization: Bearer $BACKUP_TOKEN" "$SVC/api/v1/backup" || \
-                  wget -q -O /tmp/nautilus-status.db --header="Authorization: Bearer $BACKUP_TOKEN" "$SVC/api/v1/backup"
-                SIZE=$(stat -c%s /tmp/nautilus-status.db 2>/dev/null || echo "?")
-                echo "$TAG DB snapshot: $SIZE bytes"
-
-                $MC --config-dir /tmp/mc alias set nautilus "$S3_ENDPOINT" "$S3_ACCESS_KEY" "$S3_SECRET_KEY"
-
-                TS=$(date -u +%Y%m%d-%H%M%S)
-                $MC --config-dir /tmp/mc cp /tmp/nautilus-status.db "nautilus/$S3_BUCKET/backups/nautilus-status-${TS}.db"
-                $MC --config-dir /tmp/mc cp /tmp/nautilus-status.db "nautilus/$S3_BUCKET/nautilus-status.db"
-                echo "$TAG Backup uploaded: nautilus-status-${TS}.db"
+                # ---- Backup DB (best-effort — must NOT block restart) ----
+                # A restart without a fresh backup is better than no restart at all.
+                # The init container will restore from the last good S3 backup anyway.
+                BACKUP_OK=false
+                if curl -sf -o /tmp/nautilus-status.db -H "Authorization: Bearer $BACKUP_TOKEN" "$SVC/api/v1/backup" 2>/dev/null || \
+                   wget -q -O /tmp/nautilus-status.db --header="Authorization: Bearer $BACKUP_TOKEN" "$SVC/api/v1/backup" 2>/dev/null; then
+                  SIZE=$(stat -c%s /tmp/nautilus-status.db 2>/dev/null || echo "0")
+                  echo "$TAG DB snapshot: $SIZE bytes"
+                  if [ "$SIZE" -gt 1024 ]; then
+                    $MC --config-dir /tmp/mc alias set nautilus "$S3_ENDPOINT" "$S3_ACCESS_KEY" "$S3_SECRET_KEY" 2>/dev/null && \
+                    TS=$(date -u +%Y%m%d-%H%M%S) && \
+                    $MC --config-dir /tmp/mc cp /tmp/nautilus-status.db "nautilus/$S3_BUCKET/backups/nautilus-status-${TS}.db" && \
+                    $MC --config-dir /tmp/mc cp /tmp/nautilus-status.db "nautilus/$S3_BUCKET/nautilus-status.db" && \
+                    echo "$TAG Backup uploaded: nautilus-status-${TS}.db" && \
+                    BACKUP_OK=true
+                  fi
+                fi
+                if [ "$BACKUP_OK" = false ]; then
+                  echo "$TAG WARNING: Backup failed — proceeding with restart anyway"
+                  echo "$TAG (init container will restore from last good S3 backup)"
+                fi
                 echo ""
 
-                # ---- Rollout restart ----
+                # ---- Rollout restart (MUST happen regardless of backup) ----
                 echo "$TAG Restarting deployment..."
                 kubectl rollout restart deployment/nautilus-llm-status -n "$NS"
                 kubectl rollout status deployment/nautilus-llm-status -n "$NS" --timeout=300s
