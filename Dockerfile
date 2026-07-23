@@ -4,6 +4,7 @@ COPY web/app/package*.json ./
 RUN npm ci
 COPY web/app/ ./
 RUN npm run build
+# Vite outDir is ../static, so output lands at /build/web/static/
 
 FROM golang:1.23-alpine AS backend
 RUN apk add --no-cache gcc musl-dev

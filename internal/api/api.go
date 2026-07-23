@@ -41,12 +41,12 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) routes() {
-	s.mux.HandleFunc("/api/v1/config", s.handleConfig)
-	s.mux.HandleFunc("/api/v1/models", s.handleModels)
-	s.mux.HandleFunc("/api/v1/models/", s.handleModelRoute)
-	s.mux.HandleFunc("/api/v1/metrics-meta", s.handleMetricsMeta)
-	s.mux.HandleFunc("/api/v1/health", s.handleHealth)
-	s.mux.HandleFunc("/api/v1/backup", s.handleBackup)
+	s.mux.HandleFunc("/status/api/v1/config", s.handleConfig)
+	s.mux.HandleFunc("/status/api/v1/models", s.handleModels)
+	s.mux.HandleFunc("/status/api/v1/models/", s.handleModelRoute)
+	s.mux.HandleFunc("/status/api/v1/metrics-meta", s.handleMetricsMeta)
+	s.mux.HandleFunc("/status/api/v1/health", s.handleHealth)
+	s.mux.HandleFunc("/status/api/v1/backup", s.handleBackup)
 }
 
 func serveJSON(w http.ResponseWriter, data []byte) {
@@ -79,10 +79,10 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	serveJSON(w, s.cache.GetHealthJSON())
 }
 
-// handleModelRoute routes /api/v1/models/{id}/metrics/{name}
+// handleModelRoute routes /status/api/v1/models/{id}/metrics/{name}
 func (s *Server) handleModelRoute(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
-	const prefix = "/api/v1/models/"
+	const prefix = "/status/api/v1/models/"
 	if len(path) <= len(prefix) {
 		http.NotFound(w, r)
 		return

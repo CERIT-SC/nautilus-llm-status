@@ -61,38 +61,59 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// API routes
-	mux.Handle("/api/", apiServer.Handler())
+	// API routes under /status
+	mux.Handle("/status/api/", apiServer.Handler())
 
-	// Static files (Vue SPA)
+	// Static files (Vue SPA) under /status
 	staticFS, err := fs.Sub(static.FileSystem, static.RootPath)
 	if err != nil {
 		log.Fatalf("static fs: %v", err)
 	}
 	fileServer := http.FileServer(http.FS(staticFS))
+	httpFS := http.FS(staticFS)
 
-	// SPA fallback: serve index.html for any non-API, non-file route
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
+	// SPA fallback: serve index.html for any non-API, non-file route under /status
+	mux.HandleFunc("/status/", func(w http.ResponseWriter, r *http.Request) {
+		// Strip /status prefix for file lookup
+		path := strings.TrimPrefix(r.URL.Path, "/status")
 
 		// Static asset cache headers (Vue build uses content hashes)
 		if strings.HasPrefix(path, "/js/") || strings.HasPrefix(path, "/css/") || strings.HasPrefix(path, "/img/") {
 			w.Header().Set("Cache-Control", "public, max-age=3600")
 		}
 
-		if path == "/" {
-			path = "/index.html"
-		}
-
-		f, err := staticFS.Open(path[1:])
-		if err == nil {
-			f.Close()
-			fileServer.ServeHTTP(w, r)
+		// Root of /status/ serves index.html directly - avoid file server directory redirect
+		if path == "" || path == "/" {
+			serveEmbeddedFile(w, r, httpFS, "index.html")
 			return
 		}
 
-		r.URL.Path = "/"
+		// Try to serve the requested file
+		path = strings.TrimPrefix(path, "/")
+		_, err := staticFS.Open(path)
+		if err != nil {
+			// SPA fallback: serve index.html for client-side routes
+			serveEmbeddedFile(w, r, httpFS, "index.html")
+			return
+		}
+
+		// Serve static asset - rewrite URL for file server
+		r.URL.Path = "/" + path
 		fileServer.ServeHTTP(w, r)
+	})
+
+	// Handle /status (without trailing slash) - redirect to /status/
+	mux.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/status/", http.StatusMovedPermanently)
+	})
+
+	// Redirect root to /status/
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/status/", http.StatusMovedPermanently)
+			return
+		}
+		http.NotFound(w, r)
 	})
 
 	addr := fmt.Sprintf(":%d", cfg.UI.Port)
@@ -144,6 +165,32 @@ func main() {
 	// store.Close() runs via defer
 }
 
+// serveEmbeddedFile serves a file from the embedded filesystem
+func serveEmbeddedFile(w http.ResponseWriter, r *http.Request, fs http.FileSystem, name string) {
+	f, err := fs.Open(name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+
+	// Determine content type
+	contentType := "text/html; charset=utf-8"
+	if strings.HasSuffix(name, ".js") {
+		contentType = "application/javascript"
+	} else if strings.HasSuffix(name, ".css") {
+		contentType = "text/css"
+	} else if strings.HasSuffix(name, ".svg") {
+		contentType = "image/svg+xml"
+	} else if strings.HasSuffix(name, ".png") {
+		contentType = "image/png"
+	} else if strings.HasSuffix(name, ".ico") {
+		contentType = "image/x-icon"
+	}
+	w.Header().Set("Content-Type", contentType)
+	io.Copy(w, f)
+}
+
 // gzipMiddleware compresses text/JSON responses for clients that accept gzip.
 // Uses BestSpeed to minimize CPU overhead; skips images and other binary content.
 func gzipMiddleware(next http.Handler) http.Handler {
@@ -155,13 +202,13 @@ func gzipMiddleware(next http.Handler) http.Handler {
 	}
 
 	shouldGzip := func(path string) bool {
-		if path == "/api/v1/backup" {
+		if path == "/status/api/v1/backup" {
 			return false // Binary SQLite file — must not be compressed
 		}
-		if strings.HasPrefix(path, "/api/") {
+		if strings.HasPrefix(path, "/status/api/") {
 			return true
 		}
-		if strings.HasPrefix(path, "/js/") || strings.HasPrefix(path, "/css/") {
+		if strings.HasPrefix(path, "/status/js/") || strings.HasPrefix(path, "/status/css/") {
 			return true
 		}
 		if strings.HasSuffix(path, ".html") || strings.HasSuffix(path, ".svg") {

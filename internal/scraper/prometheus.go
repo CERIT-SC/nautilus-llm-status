@@ -46,6 +46,40 @@ type promResponse struct {
 	ErrorType string `json:"errorType"`
 }
 
+// renameModelName renames specific model names to their display names.
+func renameModelName(modelName string) string {
+	if modelName == "llama-4-scout-17b-16e-instruct" {
+		return "Redhatai-scout"
+	}
+
+	// Models that should not have their first letter capitalized
+	noCapitalize := map[string]bool{
+		"multilingual-e5-large-instruct": true,
+		"mxbai-embed-large:latest":       true,
+		"nomic-embed-text-v1.5":          true,
+		"nomic-embed-text-v2-moe":        true,
+		"qwen3-embedding-4b":             true,
+		"qwen3-reranker-4b":              true,
+	}
+
+	if noCapitalize[modelName] {
+		return modelName
+	}
+
+	// Capitalize first letter for all other models
+	if len(modelName) > 0 {
+		return string(modelName[0]-32) + modelName[1:]
+	}
+	return modelName
+}
+
+// renameMetricModels renames model_name labels in metric maps.
+func renameMetricModels(metric map[string]string) {
+	if modelName, ok := metric["model_name"]; ok {
+		metric["model_name"] = renameModelName(modelName)
+	}
+}
+
 func (c *PromClient) InstantQuery(query string) ([]PromResult, time.Duration, error) {
 	u := fmt.Sprintf("%s/api/v1/query?query=%s", c.baseURL, url.QueryEscape(query))
 
@@ -77,6 +111,9 @@ func (c *PromClient) InstantQuery(query string) ([]PromResult, time.Duration, er
 	var results []PromResult
 	if err := json.Unmarshal(pr.Data.Result, &results); err != nil {
 		return nil, latency, fmt.Errorf("unmarshal results: %w", err)
+	}
+	for i := range results {
+		renameMetricModels(results[i].Metric)
 	}
 	return results, latency, nil
 }
@@ -116,6 +153,9 @@ func (c *PromClient) RangeQuery(query string, start, end time.Time, step time.Du
 	var results []PromRangeResult
 	if err := json.Unmarshal(pr.Data.Result, &results); err != nil {
 		return nil, fmt.Errorf("unmarshal range results: %w", err)
+	}
+	for i := range results {
+		renameMetricModels(results[i].Metric)
 	}
 	return results, nil
 }

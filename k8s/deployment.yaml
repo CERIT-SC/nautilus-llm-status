@@ -130,6 +130,10 @@ spec:
             secretKeyRef:
               name: llm-status-s3-credentials
               key: BACKUP_TOKEN
+        - name: ANNOUNCEMENT_MESSAGE  
+          value: ""
+        - name: ANNOUNCEMENT_TYPE
+          value: "information"
         volumeMounts:
         - name: data
           mountPath: /data

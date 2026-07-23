@@ -132,7 +132,7 @@ func (s *Store) UpsertModel(namespace, container, modelName string, ts time.Time
 
 	// Get the ID (either newly inserted or existing)
 	var id int64
-	err = s.db.QueryRow("SELECT id FROM models WHERE namespace = ? AND container = ?", namespace, container).Scan(&id)
+	err = s.db.QueryRow("SELECT id FROM models WHERE namespace = ? AND container = ? AND model_name = ?", namespace, container, modelName).Scan(&id)
 	if err != nil {
 		return 0, err
 	}

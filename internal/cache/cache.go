@@ -139,8 +139,10 @@ func (c *Cache) buildMetricsMetaJSON() {
 
 func (c *Cache) buildConfigJSON() {
 	data, _ := json.Marshal(map[string]interface{}{
-		"header": c.cfg.UI.Header,
-		"logo":   c.cfg.UI.Logo,
+		"header":               c.cfg.UI.Header,
+		"logo":                 c.cfg.UI.Logo,
+		"announcement_message": c.cfg.UI.AnnouncementMessage,
+		"announcement_type":    c.cfg.UI.AnnouncementType,
 	})
 	c.configJSON.Store(data)
 }

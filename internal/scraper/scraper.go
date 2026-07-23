@@ -127,12 +127,13 @@ func (s *Scraper) scrape() {
 	s.store.RecordPrometheusHealth(true, int(latency.Milliseconds()), "")
 
 	// Build model map and collect discovery metric rows
-	models := make(map[string]modelInfo) // key: "namespace/container"
+	models := make(map[string]modelInfo) // key: "model_name"
 	var metricRows []storage.MetricRow
 
 	for _, r := range results {
-		ns := r.Metric["namespace"]
-		ctr := r.Metric["container"]
+                log.Printf("Metrics: %v", r.Metric)
+		ns := "vllm-ns"
+		ctr := r.Metric["model_name"]
 		modelName := r.Metric["model_name"]
 		_, val, err := ParseValue(r.Value)
 		if err != nil {
@@ -146,7 +147,7 @@ func (s *Scraper) scrape() {
 			continue
 		}
 
-		key := ns + "/" + ctr
+		key := modelName
 		models[key] = modelInfo{id: id, namespace: ns, container: ctr}
 
 		labelKey := ""
@@ -182,7 +183,7 @@ func (s *Scraper) scrape() {
 		}
 		// Propagate model_name from discovery results
 		for _, r := range results {
-			if r.Metric["namespace"]+"/"+r.Metric["container"] == key {
+			if r.Metric["model_name"] == key {
 				cacheModels[key] = cache.ModelInfo{
 					ID: m.id, Namespace: m.namespace, Container: m.container,
 					ModelName: r.Metric["model_name"],
@@ -209,7 +210,7 @@ func (s *Scraper) scrapeRule(rule config.ScrapeRule, models map[string]modelInfo
 		return
 	}
 	for _, r := range results {
-		key := r.Metric["namespace"] + "/" + r.Metric["container"]
+		key := r.Metric["model_name"]
 		m, ok := models[key]
 		if !ok {
 			continue
@@ -309,8 +310,8 @@ func (s *Scraper) backfillChunk(rules []config.ScrapeRule, start, end time.Time)
 	models := make(map[string]int64) // key -> model ID
 
 	for _, r := range results {
-		ns := r.Metric["namespace"]
-		ctr := r.Metric["container"]
+		ns := "vllm-ns"
+		ctr := r.Metric["model_name"]
 		modelName := r.Metric["model_name"]
 
 		// Use earliest value timestamp for first_seen
@@ -329,7 +330,7 @@ func (s *Scraper) backfillChunk(rules []config.ScrapeRule, start, end time.Time)
 		if err != nil {
 			continue
 		}
-		key := ns + "/" + ctr
+		key := modelName
 		models[key] = id
 
 		for _, v := range r.Values {
@@ -358,7 +359,7 @@ func (s *Scraper) backfillChunk(rules []config.ScrapeRule, start, end time.Time)
 			continue
 		}
 		for _, r := range rr {
-			key := r.Metric["namespace"] + "/" + r.Metric["container"]
+			key := r.Metric["model_name"]
 			id, ok := models[key]
 			if !ok {
 				continue

@@ -1,11 +1,13 @@
 # Binary
 nautilus-status
 nautilus-llm-status
+/main
 
 # Context (contains sensitive info)
 CONTEXT.md
 
 # Node
+node_modules/
 web/app/node_modules/
 
 # Built static (regenerated from source)
@@ -30,5 +32,7 @@ k8s/secrets.yaml
 # Internal docs
 docs/
 
-# Claude
+# Claude / OpenCode agent context
 .claude/
+.opencode/
+CLAUDE.md

@@ -78,9 +78,11 @@ type CompactionConfig struct {
 }
 
 type UIConfig struct {
-	Header string `yaml:"header"`
-	Logo   string `yaml:"logo"`
-	Port   int    `yaml:"port"`
+	Header              string `yaml:"header"`
+	Logo                string `yaml:"logo"`
+	Port                int    `yaml:"port"`
+	AnnouncementMessage string `yaml:"announcement_message"`
+	AnnouncementType    string `yaml:"announcement_type"`
 }
 
 type ModelsConfig struct {
@@ -92,20 +94,20 @@ func DefaultScrapeRules() []ScrapeRule {
 	return []ScrapeRule{
 		{
 			StorageName: "num_requests_running",
-			Query:       "sum(vllm:num_requests_running) by (namespace, container, model_name)",
+			Query:       `sum({__name__=~"vllm:num_requests_running|sglang:num_running_reqs", model_name!=""}) by (model_name)`,
 			Discovery:   true,
 			Summary:     true,
 			DisplayName: "Running Requests",
 		},
 		{
 			StorageName: "num_requests_waiting",
-			Query:       "sum(vllm:num_requests_waiting) by (namespace, container)",
+			Query:       `sum({__name__=~"vllm:num_requests_waiting|sglang:num_queue_reqs", model_name!=""}) by (model_name)`,
 			Summary:     true,
 			DisplayName: "Waiting Requests",
 		},
 		{
 			StorageName:  "kv_cache_usage_perc",
-			Query:        "avg(vllm:kv_cache_usage_perc) by (namespace, container)",
+			Query:        `avg({__name__=~"vllm:kv_cache_usage_perc|sglang:token_usage", model_name!=""}) by (model_name)`,
 			Summary:      true,
 			DisplayScale: 100,
 			Unit:         "%",
@@ -113,35 +115,21 @@ func DefaultScrapeRules() []ScrapeRule {
 		},
 		{
 			StorageName: "generation_tokens_rate",
-			Query:       "sum(rate(vllm:generation_tokens_total[5m])) by (namespace, container)",
+			Query:       `sum(sglang:gen_throughput{model_name!=""}) by (model_name) or sum(rate(vllm:generation_tokens_total[2m])) by (model_name)`,
 			Summary:     true,
 			Unit:        "tok/s",
 			DisplayName: "Token Generation Rate",
 		},
 		{
-			StorageName: "gpu_count",
-			Query:       "count(DCGM_FI_DEV_GPU_UTIL) by (namespace, container, modelName)",
-			LabelKey:    "modelName",
-			Summary:     true,
-			DisplayName: "GPU Count by Type",
-		},
-		{
-			StorageName: "gpu_utilization",
-			Query:       "avg(DCGM_FI_DEV_GPU_UTIL) by (namespace, container, modelName)",
-			LabelKey:    "modelName",
-			Unit:        "%",
-			DisplayName: "GPU Utilization",
-		},
-		{
 			StorageName: "latency_p50",
-			Query:       "histogram_quantile(0.5, sum(rate(vllm:e2e_request_latency_seconds_bucket[5m])) by (le, namespace, container))",
+			Query:       `histogram_quantile(0.5, sum(rate({__name__=~"vllm:e2e_request_latency_seconds_bucket|sglang:e2e_request_latency_seconds_bucket", model_name!=""}[5m])) by (le, model_name))`,
 			SkipNaN:     true,
 			Unit:        "s",
 			DisplayName: "Latency P50",
 		},
 		{
 			StorageName: "latency_p99",
-			Query:       "histogram_quantile(0.99, sum(rate(vllm:e2e_request_latency_seconds_bucket[5m])) by (le, namespace, container))",
+			Query:       `histogram_quantile(0.99, sum(rate({__name__=~"vllm:e2e_request_latency_seconds_bucket|sglang:e2e_request_latency_seconds_bucket", model_name!=""}[5m])) by (le, model_name))`,
 			SkipNaN:     true,
 			Unit:        "s",
 			DisplayName: "Latency P99",
@@ -170,8 +158,10 @@ func DefaultConfig() *Config {
 			CoarseResolution: time.Hour,
 		},
 		UI: UIConfig{
-			Header: "Nautilus LLM Status",
-			Port:   8080,
+			Header:              "CERIT-SC LLM Status",
+			Port:                8080,
+			AnnouncementMessage: "",
+			AnnouncementType:    "information",
 		},
 		Models: ModelsConfig{
 			DownThreshold:    5 * time.Minute,
@@ -196,6 +186,12 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("BACKUP_TOKEN"); v != "" {
 		cfg.BackupToken = v
+	}
+	if v := os.Getenv("ANNOUNCEMENT_MESSAGE"); v != "" {
+		cfg.UI.AnnouncementMessage = v
+	}
+	if v := os.Getenv("ANNOUNCEMENT_TYPE"); v != "" {
+		cfg.UI.AnnouncementType = v
 	}
 
 	if path == "" {
@@ -228,6 +224,12 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("BACKUP_TOKEN"); v != "" {
 		cfg.BackupToken = v
+	}
+	if v := os.Getenv("ANNOUNCEMENT_MESSAGE"); v != "" {
+		cfg.UI.AnnouncementMessage = v
+	}
+	if v := os.Getenv("ANNOUNCEMENT_TYPE"); v != "" {
+		cfg.UI.AnnouncementType = v
 	}
 
 	return cfg, nil
