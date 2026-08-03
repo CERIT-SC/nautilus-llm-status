@@ -134,6 +134,13 @@ func DefaultScrapeRules() []ScrapeRule {
 			Unit:        "s",
 			DisplayName: "Latency P99",
 		},
+		{
+			StorageName: "generation_tokens_rate_per_request",
+			Query:       `sum(rate(sglang:generation_tokens_total{model_name!=""}[10m])) by (model_name) / (sum(avg_over_time(sglang:num_running_reqs{priority="", model_name!=""}[10m])) by (model_name) > 0)`,
+			Summary:     true,
+			Unit:        "tok/s",
+			DisplayName: "Token Generation Rate per Request",
+		},
 	}
 }
 
