@@ -115,7 +115,7 @@ func DefaultScrapeRules() []ScrapeRule {
 		},
 		{
 			StorageName: "generation_tokens_rate",
-			Query:       `sum(sglang:gen_throughput{model_name!=""}) by (model_name) or sum(rate(vllm:generation_tokens_total[2m])) by (model_name)`,
+			Query:       `sum(rate({__name__=~"sglang:generation_tokens_total|vllm:generation_tokens_total", model_name!=""}[10m])) by (model_name)`,
 			Summary:     true,
 			Unit:        "tok/s",
 			DisplayName: "Token Generation Rate",
