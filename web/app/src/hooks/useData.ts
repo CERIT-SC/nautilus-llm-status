@@ -26,8 +26,8 @@ function getRefreshInterval(): number {
 }
 
 /**
- * Health polling hook with background refresh.
- * POLLS every 10 seconds for health checks.
+ * Health polling hook. POLLS every 10 seconds while the tab is visible.
+ * Pauses in background tabs; refetches on window focus and on mount.
  */
 export function useHealth() {
   return useQuery<HealthStatus, Error>({
@@ -46,7 +46,7 @@ export function useHealth() {
     refetchInterval: HEALTH_CHECK_INTERVAL,
     retry: false,
     refetchOnMount: 'always',
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     enabled: true,
   })
 }
