@@ -136,8 +136,12 @@ func DefaultScrapeRules() []ScrapeRule {
 		},
 		{
 			StorageName: "generation_tokens_rate_per_request",
-			Query:       `sum(rate(sglang:generation_tokens_total{model_name!=""}[10m])) by (model_name) / (sum(avg_over_time(sglang:num_running_reqs{priority="", model_name!=""}[10m])) by (model_name) > 0)`,
+			Query: `(sum(rate({__name__=~"vllm:generation_tokens_total|sglang:generation_tokens_total", model_name!=""}[10m])) by (model_name))
+					/
+					clamp_min((sum(avg_over_time({__name__=~"vllm:num_requests_running|sglang:num_running_reqs", model_name!=""}[10m])) by (model_name)), 1 )
+					`,
 			Summary:     true,
+			SkipNaN:     true,
 			Unit:        "tok/s",
 			DisplayName: "Token Generation Rate per Request",
 		},

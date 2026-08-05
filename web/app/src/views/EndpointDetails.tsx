@@ -62,6 +62,7 @@ export function EndpointDetails() {
             data={responseTimeData}
             unit="ms"
             fill={false}
+            duration={duration}
           />
         </div>
       </Card>

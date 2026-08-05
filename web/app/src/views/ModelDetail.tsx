@@ -388,6 +388,7 @@ export function ModelDetail() {
                       unit={chart.unit}
                       scale={"scale" in chart ? chart.scale : 1}
                       fill={!("metricNames" in chart)}
+                      duration={duration}
                     />
                   </CardContent>
                 </Card>

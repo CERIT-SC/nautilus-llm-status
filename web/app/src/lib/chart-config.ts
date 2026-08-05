@@ -67,6 +67,22 @@ export const getTimeDisplayFormat = (duration: string) => {
 }
 
 /**
+ * Get x-axis bounds for the selected duration so the axis spans the full
+ * range even when data only covers part of it
+ */
+export const getTimeBounds = (duration: string): { min: number; max: number } => {
+  const hours: Record<string, number> = {
+    '3h': 3,
+    '24h': 24,
+    '7d': 7 * 24,
+    '30d': 30 * 24,
+  }
+  const max = Date.now()
+  const min = max - (hours[duration] ?? 24) * 60 * 60 * 1000
+  return { min, max }
+}
+
+/**
  * Format tooltip value with unit
  */
 export const formatTooltipValue = (
@@ -103,6 +119,7 @@ export const getMetricsChartOptions = (
   const colors = getChartColors()
   const duration = options?.duration || '24h'
   const showLegend = options?.showLegend ?? true
+  const bounds = getTimeBounds(duration)
 
   return {
     responsive: true,
@@ -142,6 +159,8 @@ export const getMetricsChartOptions = (
     scales: {
       x: {
         type: 'time' as const,
+        min: bounds.min,
+        max: bounds.max,
         time: {
           unit: getTimeUnit(duration),
           displayFormats: {
@@ -195,6 +214,7 @@ export const getResponseTimeChartOptions = (
   onHoverChange?: (index: number | null) => void
 ): ChartOptions<'line'> => {
   const colors = getChartColors()
+  const bounds = getTimeBounds(duration)
 
   // Calculate max Y for positioning annotations
   const maxY = 100 // Default, will be overridden by data
@@ -280,6 +300,8 @@ export const getResponseTimeChartOptions = (
     scales: {
       x: {
         type: 'time' as const,
+        min: bounds.min,
+        max: bounds.max,
         time: {
           unit: getTimeUnit(duration),
           displayFormats: {
