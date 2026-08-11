@@ -152,7 +152,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		Prometheus: PrometheusConfig{
 			URL:            "https://prometheus.nrp-nautilus.io",
-			ScrapeInterval: 30 * time.Second,
+			ScrapeInterval: 60 * time.Second,
 			QueryTimeout:   10 * time.Second,
 		},
 		Storage: StorageConfig{

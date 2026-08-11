@@ -131,7 +131,7 @@ func (s *Scraper) scrape() {
 	var metricRows []storage.MetricRow
 
 	for _, r := range results {
-                log.Printf("Metrics: %v", r.Metric)
+		log.Printf("Metrics: %v", r.Metric)
 		ns := "vllm-ns"
 		ctr := r.Metric["model_name"]
 		modelName := r.Metric["model_name"]
@@ -235,7 +235,7 @@ func (s *Scraper) scrapeRule(rule config.ScrapeRule, models map[string]modelInfo
 func (s *Scraper) fillGaps(done <-chan struct{}) {
 	rules := s.cfg.Metrics.ScrapeRules
 	now := time.Now().UTC()
-	fillFrom := now.Add(-7 * 24 * time.Hour)
+	fillFrom := now.Add(-30 * 24 * time.Hour)
 
 	disc := discoveryRule(rules)
 	if disc == nil {
@@ -243,10 +243,10 @@ func (s *Scraper) fillGaps(done <-chan struct{}) {
 		return
 	}
 
-	log.Println("[gap-filler] backfilling 7 days from Prometheus...")
+	log.Println("[gap-filler] backfilling 30 days from Prometheus...")
 
-	// Backfill in 1-hour chunks, newest first
-	chunkSize := time.Hour
+	// Backfill in 7-day chunks, newest first
+	chunkSize := time.Hour * 24
 	backoff := time.Second
 
 	chunksProcessed := 0

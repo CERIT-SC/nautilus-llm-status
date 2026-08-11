@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"net/url"
@@ -39,8 +40,8 @@ type PromRangeResult struct {
 type promResponse struct {
 	Status string `json:"status"`
 	Data   struct {
-		ResultType string            `json:"resultType"`
-		Result     json.RawMessage   `json:"result"`
+		ResultType string          `json:"resultType"`
+		Result     json.RawMessage `json:"result"`
 	} `json:"data"`
 	Error     string `json:"error"`
 	ErrorType string `json:"errorType"`
