@@ -95,7 +95,7 @@ export function FlowStep({ step, index, isLast = false, previousStep = null, onS
       className="flex items-start gap-4 relative group hover:bg-accent/30 rounded-lg p-2 -m-2 transition-colors cursor-pointer"
       onClick={onStepClick}
     >
-      <div className="relative flex-shrink-0">
+      <div className="relative shrink-0">
         {index > 0 && (
           <div 
             className={`absolute left-1/2 bottom-8 w-0.5 h-4 -translate-x-px ${getIncomingLineClasses(step, previousStep)}`}

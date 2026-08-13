@@ -73,7 +73,7 @@ export function EndpointCard({
 
   // Navigation handler
   const navigateToDetails = useCallback(() => {
-    navigate(`/endpoints/${endpoint.key}`)
+    navigate(`/status/endpoints/${endpoint.key}`)
   }, [navigate, endpoint.key])
 
   // Handle keyboard navigation for accessibility
@@ -144,7 +144,7 @@ export function EndpointCard({
                 {endpoint.name}
               </span>
             </CardTitle>
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground min-h-[1.25rem]">
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground min-h-5">
               {endpoint.group && <span className="truncate" title={endpoint.group}>{endpoint.group}</span>}
               {endpoint.group && hostname && <span>•</span>}
               {hostname && <span className="truncate" title={hostname}>{hostname}</span>}

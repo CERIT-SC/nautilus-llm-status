@@ -1,12 +1,12 @@
 import { lazy, Suspense } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { queryClient } from "./lib/query-client";
 import { useConfig } from "./hooks/useData";
 import { Announcement } from "./components/AnnouncementBanner";
 import { AppHeader } from "./components/AppHeader";
 import { SkeletonGrid } from "./components/skeletons/SkeletonGrid";
-import { ChartCardSkeleton } from "./components/skeletons";
+import { ChartCardSkeleton, StatCardsSkeleton } from "./components/skeletons";
 import { DetailPageLayout } from "./components/DetailPageLayout";
 import {
   Footer,
@@ -28,17 +28,20 @@ import HubLogo from "../public/e-INFRA_logo.svg";
 import HubLogoDark from "../public/e-INFRA_logo_White.svg";
 
 const Home = lazy(() =>
-  import("./views/Home").then((m) => ({ default: m.Home }))
+  import("./views/Home").then((m) => ({ default: m.Home })),
 );
 const ModelDetail = lazy(() =>
-  import("./views/ModelDetail").then((m) => ({ default: m.ModelDetail }))
+  import("./views/ModelDetail").then((m) => ({ default: m.ModelDetail })),
 );
 const EndpointDetails = lazy(() =>
-  import("./views/EndpointDetails").then((m) => ({ default: m.EndpointDetails }))
+  import("./views/EndpointDetails").then((m) => ({
+    default: m.EndpointDetails,
+  })),
 );
 const SuiteDetails = lazy(() =>
-  import("./views/SuiteDetails").then((m) => ({ default: m.SuiteDetails }))
+  import("./views/SuiteDetails").then((m) => ({ default: m.SuiteDetails })),
 );
+const Usage = lazy(() => import("./usage").then((m) => ({ default: m.Usage })));
 
 const ANNOUNCEMENT_VARIANT_MAP = {
   outage: "error" as const,
@@ -55,8 +58,10 @@ function AppContent() {
     ANNOUNCEMENT_VARIANT_MAP[config?.announcement_type ?? "information"] ??
     "default";
 
+  // No basename: the app owns /status (dashboard) and /usage (usage view) at
+  // the origin root, so routes carry their full paths.
   return (
-    <BrowserRouter basename="/status">
+    <BrowserRouter>
       <div className="min-h-screen flex flex-col bg-background text-foreground">
         <AppHeader />
         <main className="flex-1">
@@ -69,8 +74,16 @@ function AppContent() {
             </div>
           )}
           <Routes>
+            <Route path="/" element={<Navigate to="/status" replace />} />
+            {/* Legacy URL: the old build lived at /status/usage. Serve the
+                client-side redirect to /usage (browsers may have cached the old
+                301, so this must stay). */}
             <Route
-              path="/"
+              path="/status/usage"
+              element={<Navigate to="/usage" replace />}
+            />
+            <Route
+              path="/status"
               element={
                 <Suspense fallback={<HomeSkeleton />}>
                   <Home />
@@ -78,7 +91,7 @@ function AppContent() {
               }
             />
             <Route
-              path="/models/:id"
+              path="/status/models/:id"
               element={
                 <Suspense fallback={<ModelDetailSkeleton />}>
                   <ModelDetail />
@@ -86,7 +99,7 @@ function AppContent() {
               }
             />
             <Route
-              path="/endpoints/:key"
+              path="/status/endpoints/:key"
               element={
                 <Suspense fallback={<EndpointDetailsSkeleton />}>
                   <EndpointDetails />
@@ -94,13 +107,34 @@ function AppContent() {
               }
             />
             <Route
-              path="/suites/:key"
+              path="/status/suites/:key"
               element={
                 <Suspense fallback={<SuiteDetailsSkeleton />}>
                   <SuiteDetails />
                 </Suspense>
               }
             />
+            <Route
+              path="/usage"
+              element={
+                <Suspense
+                  fallback={
+                    <Content className="container mx-auto px-4 pt-8">
+                      <ContentBody>
+                        <Skeleton className="h-9 w-64 mb-6" />
+                        <Skeleton className="h-16 w-full mb-6" />
+                        <StatCardsSkeleton count={5} />
+                        <ChartCardSkeleton className="mt-6" />
+                        <Skeleton className="h-56 w-full mt-6" />
+                      </ContentBody>
+                    </Content>
+                  }
+                >
+                  <Usage />
+                </Suspense>
+              }
+            />
+            <Route path="*" element={<Navigate to="/status" replace />} />
           </Routes>
         </main>
         <Footer>
@@ -125,8 +159,8 @@ function AppContent() {
 
               <FooterLeftText className="text-sm text-text-muted">
                 The national Czech e-infrastructure for research and
-                development. <br></br>LLM Service Monitor operated by CERIT-SC, ICS
-                MUNI.
+                development. <br></br>LLM Service Monitor operated by CERIT-SC,
+                ICS MUNI.
               </FooterLeftText>
             </FooterLeft>
             <FooterRight>

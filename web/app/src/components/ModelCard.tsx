@@ -142,7 +142,7 @@ export function ModelCard({ model, metricsMeta }: ModelCardProps) {
   const navigate = useNavigate();
 
   const navigateToDetails = useCallback(
-    () => navigate(`/models/${model.id}`),
+    () => navigate(`/status/models/${model.id}`),
     [navigate, model.id],
   );
 

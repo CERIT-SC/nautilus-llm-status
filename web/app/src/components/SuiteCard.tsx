@@ -97,7 +97,7 @@ export function SuiteCard({
 
   // Navigation handler
   const navigateToDetails = useCallback(() => {
-    navigate(`/suites/${suite.key}`)
+    navigate(`/status/suites/${suite.key}`)
   }, [navigate, suite.key])
 
   // Handle keyboard navigation for accessibility

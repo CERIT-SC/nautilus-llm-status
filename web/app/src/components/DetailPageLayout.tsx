@@ -20,7 +20,7 @@ interface DetailPageLayoutProps {
 export function DetailPageLayout({
   title,
   subtitle,
-  backTo = '/',
+  backTo = '/status',
   loading = false,
   children,
 }: DetailPageLayoutProps) {
