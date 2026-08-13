@@ -87,7 +87,13 @@ export function Usage() {
   }
 
   if (!me.linked) {
-    return <UsageNotLinked me={me} />;
+    return (
+      <Content className="container mx-auto px-4 pt-8 place-content-center">
+        <ContentBody className="place-content-center">
+          <UsageNotLinked me={me} />;
+        </ContentBody>
+      </Content>
+    );
   }
 
   return <UsageDashboard />;

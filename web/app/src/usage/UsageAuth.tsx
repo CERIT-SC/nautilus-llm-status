@@ -61,7 +61,7 @@ export function UsageNotLinked({ me }: { me: Me }) {
   };
 
   return (
-    <div className="grid gap-4">
+    <div className="flex flex-col gap-4">
       <Alert variant="warning">
         <AlertTitle>No gateway account found</AlertTitle>
         <AlertDescription>
@@ -72,7 +72,7 @@ export function UsageNotLinked({ me }: { me: Me }) {
         </AlertDescription>
       </Alert>
 
-      <Card>
+      <Card className="mx-auto">
         <CardHeader>
           <CardTitle>Your identity</CardTitle>
         </CardHeader>
