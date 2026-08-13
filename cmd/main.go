@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -64,13 +66,48 @@ func main() {
 	// API routes under /status
 	mux.Handle("/status/api/", apiServer.Handler())
 
-	// Static files (Vue SPA) under /status
+	// Reverse proxy /usage/api/ → llm-stats usage backend /api/
+	// The usage backend is a separate Python (FastAPI) service handling OIDC
+	// auth and usage queries. The session cookie stays first-party (same origin).
+	usageBackendURL, err := url.Parse(cfg.Usage.BackendURL)
+	if err != nil {
+		log.Fatalf("invalid usage backend URL %q: %v", cfg.Usage.BackendURL, err)
+	}
+	usageProxy := httputil.NewSingleHostReverseProxy(usageBackendURL)
+	usageDirector := usageProxy.Director
+	usageProxy.Director = func(r *http.Request) {
+		usageDirector(r)
+		// Rewrite /usage/api/... → /api/... on the upstream
+		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/usage")
+		r.URL.RawPath = strings.TrimPrefix(r.URL.RawPath, "/usage")
+	}
+	// Personal usage data must not sit in any shared cache.
+	usageProxy.ModifyResponse = func(r *http.Response) error {
+		r.Header.Set("Cache-Control", "no-store")
+		return nil
+	}
+	mux.Handle("/usage/api/", usageProxy)
+
+	// Static files (SPA) embedded in the binary.
 	staticFS, err := fs.Sub(static.FileSystem, static.RootPath)
 	if err != nil {
 		log.Fatalf("static fs: %v", err)
 	}
 	fileServer := http.FileServer(http.FS(staticFS))
 	httpFS := http.FS(staticFS)
+
+	mux.HandleFunc("/usage/", func(w http.ResponseWriter, r *http.Request) {
+		serveEmbeddedFile(w, r, httpFS, "index.html")
+	})
+	mux.HandleFunc("/usage", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/usage" {
+			http.NotFound(w, r)
+			return
+		}
+		serveEmbeddedFile(w, r, httpFS, "index.html")
+	})
+
+	log.Printf("Usage backend: %s", cfg.Usage.BackendURL)
 
 	// SPA fallback: serve index.html for any non-API, non-file route under /status
 	mux.HandleFunc("/status/", func(w http.ResponseWriter, r *http.Request) {
@@ -206,6 +243,9 @@ func gzipMiddleware(next http.Handler) http.Handler {
 			return false // Binary SQLite file — must not be compressed
 		}
 		if strings.HasPrefix(path, "/status/api/") {
+			return true
+		}
+		if strings.HasPrefix(path, "/usage/api/") {
 			return true
 		}
 		if strings.HasPrefix(path, "/status/js/") || strings.HasPrefix(path, "/status/css/") {

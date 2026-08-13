@@ -16,6 +16,7 @@ type Config struct {
 	UI          UIConfig         `yaml:"ui"`
 	Models      ModelsConfig     `yaml:"models"`
 	BackupToken string           `yaml:"backup_token"`
+	Usage       UsageConfig      `yaml:"usage"`
 }
 
 type PrometheusConfig struct {
@@ -88,6 +89,13 @@ type UIConfig struct {
 type ModelsConfig struct {
 	DownThreshold    time.Duration `yaml:"down_threshold"`
 	ArchiveThreshold time.Duration `yaml:"archive_threshold"`
+}
+
+// UsageConfig configures the reverse proxy to the llm-stats usage backend.
+// The usage backend is a separate Python service (FastAPI) that handles OIDC
+// auth and usage queries. The Go server reverse-proxies /usage/api/* to it.
+type UsageConfig struct {
+	BackendURL string `yaml:"backend_url"`
 }
 
 func DefaultScrapeRules() []ScrapeRule {
@@ -178,6 +186,9 @@ func DefaultConfig() *Config {
 			DownThreshold:    5 * time.Minute,
 			ArchiveThreshold: 7 * 24 * time.Hour,
 		},
+		Usage: UsageConfig{
+			BackendURL: "http://127.0.0.1:8000",
+		},
 	}
 }
 
@@ -203,6 +214,9 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("ANNOUNCEMENT_TYPE"); v != "" {
 		cfg.UI.AnnouncementType = v
+	}
+	if v := os.Getenv("USAGE_BACKEND_URL"); v != "" {
+		cfg.Usage.BackendURL = v
 	}
 
 	if path == "" {
@@ -241,6 +255,9 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("ANNOUNCEMENT_TYPE"); v != "" {
 		cfg.UI.AnnouncementType = v
+	}
+	if v := os.Getenv("USAGE_BACKEND_URL"); v != "" {
+		cfg.Usage.BackendURL = v
 	}
 
 	return cfg, nil
