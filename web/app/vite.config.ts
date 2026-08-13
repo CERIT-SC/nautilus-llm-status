@@ -41,6 +41,11 @@ export default defineConfig({
         target: 'https://llm.ai.e-infra.cz',
         changeOrigin: true,
       },
+      '/usage/api': {
+        target: process.env.USAGE_API_TARGET ?? 'http://127.0.0.1:8000',
+        changeOrigin: false,
+        rewrite: (path) => path.replace(/^\/usage\/api/, '/api'),
+      },
     },
   },
 })

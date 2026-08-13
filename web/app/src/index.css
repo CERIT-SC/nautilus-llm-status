@@ -1,3 +1,43 @@
 @import "tailwindcss";
 @import "@e-infra/design-system/setup.css";
 @source "../node_modules/@e-infra/design-system/dist";
+
+/* Tabular numbers: usage figures get compared down a column, so they must
+   not shift width. */
+@layer utilities {
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Native controls (date-picker icon + popup, scrollbars) follow the CSS
+   color-scheme, not theme classes. */
+:root {
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
+}
+
+/* Chrome puts the date field's picker button hard against the inner edge of the
+   input, so it reads as touching the border. Nudge it in and calm it down. */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  margin-inline-start: 0.375rem;
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
