@@ -2,12 +2,14 @@ package storage
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"log"
 	"os"
 	"sort"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 )
 
 type Store struct {
@@ -34,11 +36,34 @@ type LabeledSeries struct {
 }
 
 func New(path string) (*Store, error) {
+	db, err := openDB(path)
+	if err != nil && isCorruptErr(err) {
+		// The file exists but is not a usable SQLite database.
+		// The scraper's gap-filler re-fetches recent history from Prometheus on its own.
+		log.Printf("storage: %s is not a valid database (%v); removing and starting fresh", path, err)
+		if rerr := removeDBFiles(path); rerr != nil {
+			return nil, fmt.Errorf("remove corrupt db: %w", rerr)
+		}
+		db, err = openDB(path)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	s := &Store{db: db}
+	if err := s.migrate(); err != nil {
+		return nil, fmt.Errorf("migrate: %w", err)
+	}
+	return s, nil
+}
+
+func openDB(path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_busy_timeout=30000&_synchronous=NORMAL")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 	if err := db.Ping(); err != nil {
+		db.Close()
 		return nil, fmt.Errorf("ping db: %w", err)
 	}
 
@@ -48,12 +73,32 @@ func New(path string) (*Store, error) {
 
 	// Enable incremental auto-vacuum so space is reclaimed gradually
 	db.Exec("PRAGMA auto_vacuum = INCREMENTAL")
+	return db, nil
+}
 
-	s := &Store{db: db}
-	if err := s.migrate(); err != nil {
-		return nil, fmt.Errorf("migrate: %w", err)
+// isCorruptErr reports whether err means "file exists but is not a usable
+// SQLite database" (NOTADB on open, or CORRUPT).
+func isCorruptErr(err error) bool {
+	var sqliteErr sqlite3.Error
+	if errors.As(err, &sqliteErr) {
+		return sqliteErr.Code == sqlite3.ErrNotADB || sqliteErr.Code == sqlite3.ErrCorrupt
 	}
-	return s, nil
+	return false
+}
+
+// removeDBFiles removes the DB file and its journal sidecars so the store
+// starts completely fresh on the next open.
+func removeDBFiles(path string) error {
+	for _, suffix := range []string{"", "-wal", "-shm", "-journal"} {
+		f := path + suffix
+		if _, err := os.Stat(f); errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err := os.Remove(f); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) Close() error {
@@ -394,8 +439,8 @@ func (s *Store) Compact(rawRetention, mediumRetention, mediumRes, coarseRetentio
 	deleteCutoff := now.Add(-coarseRetention)
 
 	for _, c := range []struct {
-		olderThan time.Time
-		newerThan time.Time
+		olderThan  time.Time
+		newerThan  time.Time
 		resolution time.Duration
 	}{
 		{mediumCutoff, coarseCutoff, mediumRes},
