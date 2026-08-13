@@ -18,6 +18,10 @@ import {
 } from "@e-infra/design-system";
 import { MetricsChart } from "../components/MetricsChart";
 import { ChartCardSkeleton } from "../components/skeletons";
+import {
+  DurationSelector,
+  type DurationOption,
+} from "../components/DurationSelector";
 import type { MetricsMeta, LabeledSeries } from "../types/api";
 import { fetchModelMetrics } from "../lib/api";
 import { formatTimeAgo } from "../utils/time";
@@ -25,6 +29,10 @@ import { useModels, useMetricsMeta } from "../hooks/useData";
 
 const DURATIONS = ["3h", "24h", "7d", "30d"] as const;
 type Duration = (typeof DURATIONS)[number];
+
+const DURATION_OPTIONS: readonly DurationOption<Duration>[] = DURATIONS.map(
+  (d) => ({ value: d, label: d }),
+);
 
 interface MetricRef {
   name: string;
@@ -195,7 +203,7 @@ export function ModelDetail() {
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Back Button */}
         <Link
-          to="/"
+          to="/status"
           className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -247,7 +255,7 @@ export function ModelDetail() {
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="text-center py-20">
           <H3 className="mb-2">Model not found</H3>
-          <Button variant="outline" onClick={() => navigate("/")}>
+          <Button variant="outline" onClick={() => navigate("/status")}>
             Back to models
           </Button>
         </div>
@@ -259,7 +267,7 @@ export function ModelDetail() {
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       {/* Back Button */}
       <Link
-        to="/"
+        to="/status"
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
@@ -324,24 +332,13 @@ export function ModelDetail() {
       </div>
 
       {/* Duration Selector */}
-      <div className="flex items-center gap-2 mb-6">
-        <span className="text-muted-foreground">Time range:</span>
-        <div className="flex gap-1">
-          {DURATIONS.map((d) => (
-            <Button
-              key={d}
-              variant="outline"
-              className={
-                duration === d ? "bg-secondary dark:border-secondary" : ""
-              }
-              size="sm"
-              onClick={() => setDuration(d)}
-            >
-              {d}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <DurationSelector
+        options={DURATION_OPTIONS}
+        value={duration}
+        onValueChange={setDuration}
+        label="Time range:"
+        className="mb-6"
+      />
 
       {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
