@@ -298,8 +298,8 @@ export function UsageDashboard() {
           </div>
 
           <Totals usage={usage} />
-
-          <Card>
+          {/* Chart */}
+          <Card className="min-w-96">
             <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <H4>By period</H4>
@@ -336,7 +336,7 @@ export function UsageDashboard() {
             </CardHeader>
             <CardContent>
               {!usage ? (
-                <MetricsChartSkeleton height={280} />
+                <MetricsChartSkeleton height={384} />
               ) : !hasData ? (
                 <div className="flex h-70 flex-col items-center justify-center gap-1 text-center">
                   <Small>No requests recorded in this period.</Small>
@@ -384,7 +384,10 @@ function Totals({ usage }: { usage: UsageResponse | null }) {
     {
       label: "Cost",
       value: t ? money(t.spend) : "\u2014",
-      hint: t && t.savings_spend > 0 ? `${money(t.savings_spend)} saved` : undefined,
+      hint:
+        t && t.savings_spend > 0
+          ? `${money(t.savings_spend)} saved`
+          : undefined,
     },
     {
       label: "Requests",
@@ -421,7 +424,7 @@ function Totals({ usage }: { usage: UsageResponse | null }) {
   }
 
   return (
-    <div className="grid items-start auto-rows-fr gap-4 grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
+    <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]">
       {stats.map((stat) => (
         <Card className="py-2 h-full" key={stat.label}>
           <CardContent>
@@ -546,7 +549,9 @@ function ModelTable({
                 </TableCell>
                 {showSavings ? (
                   <TableCell className="tnum text-right">
-                    {model.savings_spend > 0 ? money(model.savings_spend) : "\u2014"}
+                    {model.savings_spend > 0
+                      ? money(model.savings_spend)
+                      : "\u2014"}
                   </TableCell>
                 ) : null}
                 <TableCell className="tnum text-right">
