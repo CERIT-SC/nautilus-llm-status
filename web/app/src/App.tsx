@@ -66,12 +66,10 @@ function AppContent() {
         <AppHeader />
         <main className="flex-1">
           {announcementMessage && (
-            <div className="container mx-auto px-4 pt-4 max-w-7xl">
-              <Announcement
-                message={announcementMessage}
-                variant={announcementVariant}
-              />
-            </div>
+            <Announcement
+              message={announcementMessage}
+              variant={announcementVariant}
+            />
           )}
           <Routes>
             <Route path="/" element={<Navigate to="/status" replace />} />
