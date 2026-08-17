@@ -18,7 +18,9 @@ const PALETTE_SIZE = 7;
 
 /** The "Other" series name, present only when the dashboard truncated the top N. */
 function otherSeriesName(seriesNames: string[]): string | null {
-  return seriesNames.length > PALETTE_SIZE ? seriesNames[seriesNames.length - 1] : null;
+  return seriesNames.length > PALETTE_SIZE
+    ? seriesNames[seriesNames.length - 1]
+    : null;
 }
 
 /** Fold one bucket's models into per-series values plus the "Other" aggregate. */
@@ -41,7 +43,11 @@ function foldModels(
   return values;
 }
 
-function buildRows(usage: UsageResponse, seriesNames: string[], metric: MetricKey): UsageBarRow[] {
+function buildRows(
+  usage: UsageResponse,
+  seriesNames: string[],
+  metric: MetricKey,
+): UsageBarRow[] {
   const names = new Set(seriesNames);
   const otherName = otherSeriesName(seriesNames);
   return usage.buckets.map((bucket) => ({
@@ -105,7 +111,10 @@ export function UsageChart({
     return getChartOtherColor();
   }, [isDark]);
   const chartData = useMemo(
-    () => (rows.length ? buildChartData(rows, seriesNames, palette, otherColour) : null),
+    () =>
+      rows.length
+        ? buildChartData(rows, seriesNames, palette, otherColour)
+        : null,
     [rows, seriesNames, palette, otherColour],
   );
   // Legend mirrors MetricsChart: shown only when more than one series exists.
@@ -125,7 +134,7 @@ export function UsageChart({
   if (!chartData) return null;
 
   return (
-    <div className="relative w-full" style={{ height: 340 }}>
+    <div className="relative w-full h-96">
       <Bar data={chartData} options={options} />
       {tooltip && (
         <UsageChartTooltip data={tooltip} reducedMotion={reducedMotion} />
