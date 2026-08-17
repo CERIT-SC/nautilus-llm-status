@@ -20,7 +20,7 @@ import type { Me } from "./types";
 export function UsageSignIn({ message }: { message: string | null }) {
   return (
     <>
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md mx-auto">
         <CardHeader>
           <CardTitle>See what you spent on the LLM gateway</CardTitle>
           <CardDescription className="text-text-muted mt-2">

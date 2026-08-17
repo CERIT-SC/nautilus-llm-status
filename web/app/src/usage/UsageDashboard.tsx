@@ -37,6 +37,7 @@ import {
   daysAgo,
   metricValue,
   money,
+  percent,
   rangeLabel,
   startOfYear,
   today,
@@ -105,6 +106,7 @@ const GRANULARITIES: { id: Granularity; label: string }[] = [
 
 const METRICS: { id: MetricKey; label: string }[] = [
   { id: "total_tokens", label: "Tokens" },
+  { id: "cache_read_input_tokens", label: "Cached" },
   { id: "spend", label: "Cost" },
   { id: "api_requests", label: "Requests" },
 ];
@@ -358,39 +360,63 @@ export function UsageDashboard() {
 }
 
 function Totals({ usage }: { usage: UsageResponse | null }) {
-  const totals = usage?.totals;
-  const cached =
-    (totals?.cache_read_input_tokens ?? 0) +
-    (totals?.cache_creation_input_tokens ?? 0);
+  const t = usage?.totals;
 
   const stats: { label: string; value: string; hint?: string }[] = [
     {
       label: "Total tokens",
-      value: totals ? tokens(totals.total_tokens) : "\u2014",
+      value: t ? tokens(t.total_tokens) : "\u2014",
     },
     {
       label: "Prompt",
-      value: totals ? tokens(totals.prompt_tokens) : "\u2014",
+      value: t ? tokens(t.prompt_tokens) : "\u2014",
+      // Cache reads are counted inside prompt_tokens, so this is a share of
+      // that figure rather than something to add to it.
+      hint:
+        t && t.cache_read_input_tokens > 0
+          ? `${percent(t.cache_read_share)} from cache`
+          : undefined,
     },
     {
       label: "Completion",
-      value: totals ? tokens(totals.completion_tokens) : "\u2014",
+      value: t ? tokens(t.completion_tokens) : "\u2014",
     },
-    { label: "Cost", value: totals ? money(totals.spend) : "\u2014" },
+    {
+      label: "Cost",
+      value: t ? money(t.spend) : "\u2014",
+      hint: t && t.savings_spend > 0 ? `${money(t.savings_spend)} saved` : undefined,
+    },
     {
       label: "Requests",
-      value: totals ? tokens(totals.api_requests) : "\u2014",
+      value: t ? tokens(t.api_requests) : "\u2014",
       hint:
-        totals && totals.failed_requests > 0
-          ? `${tokens(totals.failed_requests)} failed`
+        t && t.failed_requests > 0
+          ? `${tokens(t.failed_requests)} failed`
           : undefined,
     },
   ];
-  if (cached > 0) {
+
+  // Cache and compression tiles appear only when there is something to show,
+  // so a gateway without prompt caching does not carry empty boxes.
+  if (t && t.cache_read_input_tokens > 0) {
     stats.push({
-      label: "Cached input",
-      value: tokens(cached),
-      hint: "not counted in the total",
+      label: "Cache reads",
+      value: tokens(t.cache_read_input_tokens),
+      hint: `${tokens(t.uncached_prompt_tokens)} uncached`,
+    });
+  }
+  if (t && t.cache_creation_input_tokens > 0) {
+    stats.push({
+      label: "Cache writes",
+      value: tokens(t.cache_creation_input_tokens),
+      hint: "billed at write rate",
+    });
+  }
+  if (t && t.compression_saved_tokens > 0) {
+    stats.push({
+      label: "Compression saved",
+      value: tokens(t.compression_saved_tokens),
+      hint: "tokens never sent",
     });
   }
 
@@ -436,6 +462,12 @@ function ModelTable({
 
   const otherColour = getChartOtherColor();
 
+  // Only widen the table when the gateway actually reports these.
+  const showCache = usage.models.some(
+    (m) => m.cache_read_input_tokens > 0 || m.cache_creation_input_tokens > 0,
+  );
+  const showSavings = usage.models.some((m) => m.savings_spend > 0);
+
   return (
     <Card>
       <CardHeader className="flex flex-wrap items-center justify-between gap-4">
@@ -456,9 +488,18 @@ function ModelTable({
             <TableRow>
               <TableHead className="pl-6">Model</TableHead>
               <TableHead className="text-right">Prompt</TableHead>
+              {showCache ? (
+                <>
+                  <TableHead className="text-right">Cache read</TableHead>
+                  <TableHead className="text-right">Cache write</TableHead>
+                </>
+              ) : null}
               <TableHead className="text-right">Completion</TableHead>
               <TableHead className="text-right">Total tokens</TableHead>
               <TableHead className="text-right">Cost</TableHead>
+              {showSavings ? (
+                <TableHead className="text-right">Saved</TableHead>
+              ) : null}
               <TableHead className="text-right">Requests</TableHead>
               <TableHead className="w-[18%] pr-6">Share</TableHead>
             </TableRow>
@@ -474,7 +515,22 @@ function ModelTable({
                 </TableCell>
                 <TableCell className="tnum text-right">
                   {tokens(model.prompt_tokens)}
+                  {model.cache_read_share > 0 ? (
+                    <span className="text-text-muted ml-1.5 text-xs">
+                      {percent(model.cache_read_share)}
+                    </span>
+                  ) : null}
                 </TableCell>
+                {showCache ? (
+                  <>
+                    <TableCell className="tnum text-right">
+                      {tokens(model.cache_read_input_tokens)}
+                    </TableCell>
+                    <TableCell className="tnum text-right">
+                      {tokens(model.cache_creation_input_tokens)}
+                    </TableCell>
+                  </>
+                ) : null}
                 <TableCell className="tnum text-right">
                   {tokens(model.completion_tokens)}
                 </TableCell>
@@ -484,6 +540,11 @@ function ModelTable({
                 <TableCell className="tnum text-right">
                   {money(model.spend)}
                 </TableCell>
+                {showSavings ? (
+                  <TableCell className="tnum text-right">
+                    {model.savings_spend > 0 ? money(model.savings_spend) : "\u2014"}
+                  </TableCell>
+                ) : null}
                 <TableCell className="tnum text-right">
                   {tokens(model.api_requests)}
                 </TableCell>
@@ -507,11 +568,15 @@ function ModelTable({
 
 const CSV_COLUMNS = [
   "prompt_tokens",
-  "completion_tokens",
-  "total_tokens",
+  "uncached_prompt_tokens",
   "cache_read_input_tokens",
   "cache_creation_input_tokens",
+  "completion_tokens",
+  "total_tokens",
+  "compression_saved_tokens",
   "spend",
+  "prompt_caching_savings_spend",
+  "compression_savings_spend",
   "api_requests",
 ] as const;
 

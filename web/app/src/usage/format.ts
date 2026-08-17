@@ -21,6 +21,11 @@ export function money(value: number): string {
   return `$${value.toFixed(value < 100 ? 4 : 2)}`;
 }
 
+/** Format a 0..1 share as an integer percentage. */
+export function percent(value: number): string {
+  return `${(value * 100).toFixed(0)}%`;
+}
+
 export function dateLabel(iso: string): string {
   return day.format(new Date(`${iso}T00:00:00`));
 }
@@ -53,6 +58,7 @@ export function today(): string {
 export function metricValue(usage: ModelUsage, metric: MetricKey): number {
   if (metric === "spend") return usage.spend;
   if (metric === "api_requests") return usage.api_requests;
+  if (metric === "cache_read_input_tokens") return usage.cache_read_input_tokens;
   return usage.total_tokens;
 }
 
