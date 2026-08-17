@@ -444,7 +444,7 @@ function stackGeometry(chart: Chart, dataPoints: TooltipItem<"bar">[]) {
 /**
  * Build render data for the external usage tooltip; null hides it. Keeps the
  * old canvas-tooltip content rules: zero-value rows are dropped, rows list
- * top-of-stack first, partial buckets are marked "running".
+ * top-of-stack first.
  */
 export function buildUsageTooltipData(
   tooltip: TooltipModel<"bar">,
@@ -465,7 +465,7 @@ export function buildUsageTooltipData(
 
   const range = rangeLabel(row.start, row.end);
   return {
-    title: row.partial ? `${range} – running` : range,
+    title: range,
     items: visible.map((dp) => {
       const bg = dp.dataset.backgroundColor;
       return {
@@ -539,7 +539,7 @@ export function computeTooltipPosition(
   };
 }
 
-function buildRunningAnnotation(
+function buildTodayAnnotation(
   partial: UsageBarRow | null,
   muted: string,
 ): AnnotationOptions | null {
@@ -551,14 +551,6 @@ function buildRunningAnnotation(
     borderColor: muted,
     borderWidth: 1,
     borderDash: [3, 3],
-    label: {
-      display: true,
-      content: "running",
-      position: "start",
-      color: muted,
-      backgroundColor: "rgba(0,0,0,0)",
-      font: { size: 11 },
-    },
   };
 }
 
@@ -573,7 +565,7 @@ export function getUsageBarChartOptions(
   onTooltip: (data: UsageTooltipData | null) => void,
 ): ChartOptions<"bar"> {
   const colors = getChartColors();
-  const annotation = buildRunningAnnotation(
+  const annotation = buildTodayAnnotation(
     rows.find((row) => row.partial) ?? null,
     colors.text,
   );
@@ -599,7 +591,7 @@ export function getUsageBarChartOptions(
         itemSort: (a, b) => b.datasetIndex - a.datasetIndex,
       },
       annotation: {
-        annotations: annotation ? { running: annotation } : {},
+        annotations: annotation ? { today: annotation } : {},
       },
     },
     scales: {
