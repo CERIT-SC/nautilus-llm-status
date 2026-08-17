@@ -478,7 +478,11 @@ function ModelTable({
             {usage.models.length === 1 ? "model" : "models"} in this period
           </Muted>
         </div>
-        <Button variant="outline" size="sm" onClick={() => downloadCsv(usage)}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => downloadCsv(usage)}
+        >
           Download CSV
         </Button>
       </CardHeader>
