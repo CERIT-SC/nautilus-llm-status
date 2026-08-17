@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { UsageTooltipData } from "../lib/chart-config";
 import { computeTooltipPosition } from "../lib/chart-config";
+import { P, Separator, Small } from "@e-infra/design-system";
 
-/** Design-system-styled hover card for the usage bar chart. */
+/** hover card for the usage bar chart. */
 export function UsageChartTooltip({
   data,
   reducedMotion,
@@ -33,28 +34,29 @@ export function UsageChartTooltip({
     <div
       ref={ref}
       role="tooltip"
-      className={`pointer-events-none absolute z-10 grid min-w-32 items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl ${
+      className={`pointer-events-none absolute z-10 grid min-w-32 items-start gap-1.5 rounded-lg border border-border bg-surface-raised p-0 shadow-xl ${
         reducedMotion ? "" : "transition-opacity duration-150"
       } ${position ? "opacity-100" : "opacity-0"}`}
       style={{ left: position?.left ?? 0, top: position?.top ?? 0 }}
     >
-      <div className="border-b border-border/50 pb-1 font-medium">
-        {data.title}
+      <div className="px-2 pt-2">
+        <P>{data.title}</P>
       </div>
+      <Separator />
       {data.items.map((item) => (
-        <div key={item.label} className="flex items-center gap-2">
+        <div key={item.label} className="flex items-center gap-2 px-2">
           <span
-            className="size-2.5 shrink-0 rounded-[2px]"
+            className="size-3 shrink-0 rounded-md"
             style={{ backgroundColor: item.color }}
           />
-          <span className="flex-1 text-muted-foreground">{item.label}</span>
-          <span className="font-mono font-medium tabular-nums">
-            {item.formatted}
-          </span>
+          <Small className="flex-1 text-text-muted">{item.label}</Small>
+          <Small className="text-semibold tabular-nums">{item.formatted}</Small>
         </div>
       ))}
-      <div className="mt-0.5 border-t border-border/50 pt-1 font-medium">
-        Total: {data.totalFormatted}
+      <Separator />
+      <div className="px-2 pb-2 flex justify-between">
+        <Small className="text-text-muted">Total:</Small>
+        <Small className="text-semibold">{data.totalFormatted}</Small>
       </div>
     </div>
   );
