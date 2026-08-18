@@ -429,8 +429,7 @@ function stackGeometry(chart: Chart, dataPoints: TooltipItem<"bar">[]) {
   let topY = Infinity;
   for (const dp of dataPoints) {
     const el = chart.getDatasetMeta(dp.datasetIndex).data[dp.dataIndex] as
-      | BarElement
-      | undefined;
+      BarElement | undefined;
     if (!el) continue;
     // width/height live in the element's props (BarProps), read via getProps.
     const width = el.getProps(["width"], true).width;
@@ -512,12 +511,18 @@ export function computeTooltipPosition(
   const clampX = (left: number) =>
     Math.max(
       TOOLTIP_MARGIN,
-      Math.min(left, Math.max(TOOLTIP_MARGIN, data.chartWidth - width - TOOLTIP_MARGIN)),
+      Math.min(
+        left,
+        Math.max(TOOLTIP_MARGIN, data.chartWidth - width - TOOLTIP_MARGIN),
+      ),
     );
   const clampY = (top: number) =>
     Math.max(
       TOOLTIP_MARGIN,
-      Math.min(top, Math.max(TOOLTIP_MARGIN, data.chartHeight - height - TOOLTIP_MARGIN)),
+      Math.min(
+        top,
+        Math.max(TOOLTIP_MARGIN, data.chartHeight - height - TOOLTIP_MARGIN),
+      ),
     );
   const centeredOnStack = data.stackTopY - height / 2;
 
