@@ -721,6 +721,6 @@ export const buildDataset = (
     pointHoverRadius: 3,
     tension: 0.2,
     fill,
-    spanGaps: false,
+    spanGaps: true,
   };
 };
