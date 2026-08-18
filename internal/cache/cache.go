@@ -58,8 +58,8 @@ type Cache struct {
 
 	// Model registry
 	modelsMu sync.RWMutex
-	models   map[int64]*modelEntry          // id -> entry
-	modelKey map[string]int64               // "namespace/container" -> id
+	models   map[int64]*modelEntry // id -> entry
+	modelKey map[string]int64      // "namespace/container" -> id
 
 	// Time series: modelID -> metricName -> labelKey -> []MetricPoint
 	seriesMu sync.RWMutex
@@ -80,11 +80,11 @@ type Cache struct {
 // New creates a new cache and pre-computes static responses.
 func New(cfg *config.Config) *Cache {
 	c := &Cache{
-		cfg:      cfg,
-		models:   make(map[int64]*modelEntry),
-		modelKey: make(map[string]int64),
-		series:   make(map[int64]map[string]map[string][]MetricPoint),
-		uptime:   make(map[int64]*uptimeTracker),
+		cfg:            cfg,
+		models:         make(map[int64]*modelEntry),
+		modelKey:       make(map[string]int64),
+		series:         make(map[int64]map[string]map[string][]MetricPoint),
+		uptime:         make(map[int64]*uptimeTracker),
 		scrapeInterval: cfg.Prometheus.ScrapeInterval,
 	}
 
