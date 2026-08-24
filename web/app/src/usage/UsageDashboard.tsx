@@ -405,21 +405,21 @@ function Totals({ usage }: { usage: UsageResponse | null }) {
   if (t && t.cache_read_input_tokens > 0) {
     stats.push({
       label: "Cache reads",
-      value: tokens(t.cache_read_input_tokens),
-      hint: `${tokens(t.uncached_prompt_tokens)} uncached`,
+      value: tokensShort(t.cache_read_input_tokens),
+      hint: `${tokensShort(t.uncached_prompt_tokens)} uncached`,
     });
   }
   if (t && t.cache_creation_input_tokens > 0) {
     stats.push({
       label: "Cache writes",
-      value: tokens(t.cache_creation_input_tokens),
+      value: tokensShort(t.cache_creation_input_tokens),
       hint: "billed at write rate",
     });
   }
   if (t && t.compression_saved_tokens > 0) {
     stats.push({
       label: "Compression saved",
-      value: tokens(t.compression_saved_tokens),
+      value: tokensShort(t.compression_saved_tokens),
       hint: "tokens never sent",
     });
   }
