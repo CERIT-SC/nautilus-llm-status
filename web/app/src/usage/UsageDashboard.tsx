@@ -42,6 +42,7 @@ import {
   startOfYear,
   today,
   tokens,
+  tokensShort,
 } from "./format";
 import type { Bucket, Granularity, MetricKey, UsageResponse } from "./types";
 import { UsageChart } from "./UsageChart";
@@ -365,11 +366,11 @@ function Totals({ usage }: { usage: UsageResponse | null }) {
   const stats: { label: string; value: string; hint?: string }[] = [
     {
       label: "Total tokens",
-      value: t ? tokens(t.total_tokens) : "\u2014",
+      value: t ? tokensShort(t.total_tokens) : "\u2014",
     },
     {
       label: "Prompt",
-      value: t ? tokens(t.prompt_tokens) : "\u2014",
+      value: t ? tokensShort(t.prompt_tokens) : "\u2014",
       // Cache reads are counted inside prompt_tokens, so this is a share of
       // that figure rather than something to add to it.
       hint:
@@ -379,7 +380,7 @@ function Totals({ usage }: { usage: UsageResponse | null }) {
     },
     {
       label: "Completion",
-      value: t ? tokens(t.completion_tokens) : "\u2014",
+      value: t ? tokensShort(t.completion_tokens) : "\u2014",
     },
     {
       label: "Cost",

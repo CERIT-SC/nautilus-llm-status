@@ -1,8 +1,15 @@
 import type { MetricKey, ModelUsage } from "./types";
 
-const groups = new Intl.NumberFormat("en-GB");
-const compact = new Intl.NumberFormat("en-GB", { notation: "compact", maximumFractionDigits: 1 });
-const day = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
+const groups = new Intl.NumberFormat("en-US");
+const compact = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+const day = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
 
 /** Czech and SI convention groups thousands with a space rather than a comma.
  *  U+202F (narrow no-break space) is the right character: it will not wrap, and
@@ -31,7 +38,9 @@ export function dateLabel(iso: string): string {
 }
 
 export function rangeLabel(start: string, end: string): string {
-  return start === end ? dateLabel(start) : `${dateLabel(start)} \u2013 ${dateLabel(end)}`;
+  return start === end
+    ? dateLabel(start)
+    : `${dateLabel(start)} \u2013 ${dateLabel(end)}`;
 }
 
 export function isoDay(d: Date): string {
@@ -58,7 +67,8 @@ export function today(): string {
 export function metricValue(usage: ModelUsage, metric: MetricKey): number {
   if (metric === "spend") return usage.spend;
   if (metric === "api_requests") return usage.api_requests;
-  if (metric === "cache_read_input_tokens") return usage.cache_read_input_tokens;
+  if (metric === "cache_read_input_tokens")
+    return usage.cache_read_input_tokens;
   return usage.total_tokens;
 }
 
