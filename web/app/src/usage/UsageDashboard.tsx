@@ -465,12 +465,19 @@ function ModelTable({
   );
 
   const otherColour = getChartOtherColor();
+  const total = usage.totals;
 
-  // Only widen the table when the gateway actually reports these.
-  const showCache = usage.models.some(
-    (m) => m.cache_read_input_tokens > 0 || m.cache_creation_input_tokens > 0,
+  // A column earns its space only when at least one model reports a value
+  const showPrompt = usage.models.some((m) => m.prompt_tokens > 0);
+  const showCacheRead = usage.models.some((m) => m.cache_read_input_tokens > 0);
+  const showCacheWrite = usage.models.some(
+    (m) => m.cache_creation_input_tokens > 0,
   );
+  const showCompletion = usage.models.some((m) => m.completion_tokens > 0);
+  const showTotalTokens = usage.models.some((m) => m.total_tokens > 0);
+  const showCost = usage.models.some((m) => m.spend > 0);
   const showSavings = usage.models.some((m) => m.savings_spend > 0);
+  const showRequests = usage.models.some((m) => m.api_requests > 0);
 
   return (
     <Card>
@@ -495,20 +502,30 @@ function ModelTable({
           <TableHeader>
             <TableRow>
               <TableHead className="pl-6">Model</TableHead>
-              <TableHead className="text-right">Prompt</TableHead>
-              {showCache ? (
-                <>
-                  <TableHead className="text-right">Cache read</TableHead>
-                  <TableHead className="text-right">Cache write</TableHead>
-                </>
+              {showPrompt ? (
+                <TableHead className="text-right">Prompt</TableHead>
               ) : null}
-              <TableHead className="text-right">Completion</TableHead>
-              <TableHead className="text-right">Total tokens</TableHead>
-              <TableHead className="text-right">Cost</TableHead>
+              {showCacheRead ? (
+                <TableHead className="text-right">Cache read</TableHead>
+              ) : null}
+              {showCacheWrite ? (
+                <TableHead className="text-right">Cache write</TableHead>
+              ) : null}
+              {showCompletion ? (
+                <TableHead className="text-right">Completion</TableHead>
+              ) : null}
+              {showTotalTokens ? (
+                <TableHead className="text-right">Total tokens</TableHead>
+              ) : null}
+              {showCost ? (
+                <TableHead className="text-right">Cost</TableHead>
+              ) : null}
               {showSavings ? (
                 <TableHead className="text-right">Saved</TableHead>
               ) : null}
-              <TableHead className="text-right">Requests</TableHead>
+              {showRequests ? (
+                <TableHead className="text-right">Requests</TableHead>
+              ) : null}
               <TableHead className="w-[18%] pr-6">Share</TableHead>
             </TableRow>
           </TableHeader>
@@ -521,33 +538,43 @@ function ModelTable({
                     {model.model}
                   </span>
                 </TableCell>
-                <TableCell className="tnum text-right">
-                  {tokens(model.prompt_tokens)}
-                  {model.cache_read_share > 0 ? (
-                    <span className="text-text-muted ml-1.5 text-xs">
-                      {percent(model.cache_read_share)}
-                    </span>
-                  ) : null}
-                </TableCell>
-                {showCache ? (
-                  <>
-                    <TableCell className="tnum text-right">
-                      {tokens(model.cache_read_input_tokens)}
-                    </TableCell>
-                    <TableCell className="tnum text-right">
-                      {tokens(model.cache_creation_input_tokens)}
-                    </TableCell>
-                  </>
+                {showPrompt ? (
+                  <TableCell className="tnum text-right">
+                    {tokens(model.prompt_tokens)}
+                  </TableCell>
                 ) : null}
-                <TableCell className="tnum text-right">
-                  {tokens(model.completion_tokens)}
-                </TableCell>
-                <TableCell className="tnum text-right font-medium">
-                  {tokens(model.total_tokens)}
-                </TableCell>
-                <TableCell className="tnum text-right">
-                  {money(model.spend)}
-                </TableCell>
+                {showCacheRead ? (
+                  <TableCell className="tnum text-right">
+                    {tokens(model.cache_read_input_tokens)}
+                    {/* The share qualifies the cache-read figure, so it
+                        lives here rather than in the Prompt column. */}
+                    {model.cache_read_share > 0 ? (
+                      <span className="text-text-muted ml-1.5 text-xs">
+                        {percent(model.cache_read_share)}
+                      </span>
+                    ) : null}
+                  </TableCell>
+                ) : null}
+                {showCacheWrite ? (
+                  <TableCell className="tnum text-right">
+                    {tokens(model.cache_creation_input_tokens)}
+                  </TableCell>
+                ) : null}
+                {showCompletion ? (
+                  <TableCell className="tnum text-right">
+                    {tokens(model.completion_tokens)}
+                  </TableCell>
+                ) : null}
+                {showTotalTokens ? (
+                  <TableCell className="tnum text-right font-medium">
+                    {tokens(model.total_tokens)}
+                  </TableCell>
+                ) : null}
+                {showCost ? (
+                  <TableCell className="tnum text-right">
+                    {money(model.spend)}
+                  </TableCell>
+                ) : null}
                 {showSavings ? (
                   <TableCell className="tnum text-right">
                     {model.savings_spend > 0
@@ -555,9 +582,11 @@ function ModelTable({
                       : "\u2014"}
                   </TableCell>
                 ) : null}
-                <TableCell className="tnum text-right">
-                  {tokens(model.api_requests)}
-                </TableCell>
+                {showRequests ? (
+                  <TableCell className="tnum text-right">
+                    {tokens(model.api_requests)}
+                  </TableCell>
+                ) : null}
                 <TableCell className="pr-6">
                   <span
                     className="block h-2 rounded-sm"
@@ -569,6 +598,55 @@ function ModelTable({
                 </TableCell>
               </TableRow>
             ))}
+            <TableRow className="border-t-2 font-semibold">
+              <TableCell className="pl-6">Total</TableCell>
+              {showPrompt ? (
+                <TableCell className="tnum text-right">
+                  {tokens(total.prompt_tokens)}
+                </TableCell>
+              ) : null}
+              {showCacheRead ? (
+                <TableCell className="tnum text-right">
+                  {tokens(total.cache_read_input_tokens)}
+                  {total.cache_read_share > 0 ? (
+                    <span className="text-text-muted ml-1.5 text-xs font-normal">
+                      {percent(total.cache_read_share)}
+                    </span>
+                  ) : null}
+                </TableCell>
+              ) : null}
+              {showCacheWrite ? (
+                <TableCell className="tnum text-right">
+                  {tokens(total.cache_creation_input_tokens)}
+                </TableCell>
+              ) : null}
+              {showCompletion ? (
+                <TableCell className="tnum text-right">
+                  {tokens(total.completion_tokens)}
+                </TableCell>
+              ) : null}
+              {showTotalTokens ? (
+                <TableCell className="tnum text-right">
+                  {tokens(total.total_tokens)}
+                </TableCell>
+              ) : null}
+              {showCost ? (
+                <TableCell className="tnum text-right">
+                  {money(total.spend)}
+                </TableCell>
+              ) : null}
+              {showSavings ? (
+                <TableCell className="tnum text-right">
+                  {money(total.savings_spend)}
+                </TableCell>
+              ) : null}
+              {showRequests ? (
+                <TableCell className="tnum text-right">
+                  {tokens(total.api_requests)}
+                </TableCell>
+              ) : null}
+              <TableCell className="pr-6" />
+            </TableRow>
           </TableBody>
         </Table>
       </CardContent>
@@ -621,6 +699,17 @@ function downloadCsv(usage: UsageResponse) {
         ].join(","),
       );
     }
+    // Raw numbers via String(), never tokens()/money(): the total must stay
+    // machine-readable when the CSV is opened in a spreadsheet.
+    lines.push(
+      [
+        csvCell(bucket.key),
+        csvCell(bucket.start),
+        csvCell(bucket.end),
+        "TOTAL",
+        ...CSV_COLUMNS.map((column) => String(bucket.totals[column])),
+      ].join(","),
+    );
   }
   const blob = new Blob([lines.join("\r\n")], {
     type: "text/csv;charset=utf-8",
