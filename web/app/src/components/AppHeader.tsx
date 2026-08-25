@@ -40,7 +40,7 @@ function BrandLink() {
       to="/status"
       className="flex items-center gap-3 hover:opacity-80 transition-opacity"
     >
-      <div className="h-10 items-center justify-center shrink-0 hidden sm:flex">
+      <div className="h-10 items-center justify-center shrink-0 flex">
         <img
           className="h-8 w-auto object-contain block dark:hidden"
           src={InfraLogo}
@@ -115,7 +115,10 @@ function MobileNav({
           <Menu className="h-5 w-5" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-sm">
+      <SheetContent
+        side="right"
+        className="w-full gap-0 p-0 sm:max-w-sm overflow-y-auto"
+      >
         <SheetHeader className="flex-row items-center justify-between border-b border-border mr-8">
           <SheetTitle>Menu</SheetTitle>
           <HealthIndicator healthy={isHealthy} />
@@ -146,9 +149,7 @@ function MobileNav({
         <Separator />
 
         <div className="p-4">
-          <p className="mb-2 text-sm font-medium text-text-muted">
-            Theme
-          </p>
+          <p className="mb-2 text-sm font-medium text-text-muted">Theme</p>
           <ThemeItems onSelect={() => setOpen(false)} />
         </div>
 
