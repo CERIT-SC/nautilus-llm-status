@@ -221,7 +221,7 @@ export function UsageDashboard() {
         <ContentHeading>Usage</ContentHeading>
         <ContentBody>
           <div className="text-center py-20">
-            <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <AlertTriangle className="h-12 w-12 text-text-muted mx-auto mb-4" />
             <H3 className="mb-2">Failed to load usage</H3>
             <Muted>{errorMessage}</Muted>
           </div>
@@ -480,7 +480,7 @@ function ModelTable({
   const showRequests = usage.models.some((m) => m.api_requests > 0);
 
   return (
-    <Card>
+    <Card className="overflow-x-auto">
       <CardHeader className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <H4>By model</H4>
@@ -497,7 +497,7 @@ function ModelTable({
           Download CSV
         </Button>
       </CardHeader>
-      <CardContent className="overflow-x-auto p-0">
+      <CardContent className="p-0">
         <Table>
           <TableHeader>
             <TableRow>

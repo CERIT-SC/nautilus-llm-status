@@ -24,6 +24,7 @@ export function DurationSelector<T extends string = string>({
     <div className={`flex flex-col gap-1 ${className ?? ""}`}>
       {label ? <span className="text-text-muted pl-2">{label}</span> : null}
       <ToggleGroup
+        className="flex-wrap"
         type="single"
         variant="outline"
         spacing={1}

@@ -1,10 +1,10 @@
+import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import {
   Button,
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
-  DropdownMenuItem,
 } from "@e-infra/design-system";
 import { useUIStore } from "../stores/ui-store";
 
@@ -22,27 +22,47 @@ const REFRESH_INTERVALS: RefreshInterval[] = [
   { value: "600", label: "10m" },
 ];
 
-export function RefreshRateSelector() {
+export function RefreshRateItems({ onSelect }: { onSelect?: () => void }) {
   const refreshInterval = useUIStore((s) => s.refreshInterval);
   const setRefreshInterval = useUIStore((s) => s.setRefreshInterval);
 
   return (
-    <DropdownMenu>
+    <div className="flex flex-col gap-1">
+      {REFRESH_INTERVALS.map((i) => (
+        <Button
+          key={i.value}
+          variant={refreshInterval === i.value ? "secondary" : "ghost"}
+          size="sm"
+          className="w-full justify-start"
+          onClick={() => {
+            setRefreshInterval(i.value);
+            onSelect?.();
+          }}
+        >
+          {i.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+export function RefreshRateSelector() {
+  const [open, setOpen] = useState(false);
+  const refreshInterval = useUIStore((s) => s.refreshInterval);
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" aria-label="Select refresh rate">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          {REFRESH_INTERVALS.find((i) => i.value === refreshInterval)?.label || "5m"}
+          <RefreshCw className="h-4 w-4 mr-0 md:mr-2" />
+          <span className="hidden md:block">
+            {REFRESH_INTERVALS.find((i) => i.value === refreshInterval)
+              ?.label || "5m"}
+          </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {REFRESH_INTERVALS.map((i) => (
-          <DropdownMenuItem
-            key={i.value}
-            onClick={() => setRefreshInterval(i.value)}
-          >
-            {i.label}
-          </DropdownMenuItem>
-        ))}
+        <RefreshRateItems onSelect={() => setOpen(false)} />
       </DropdownMenuContent>
     </DropdownMenu>
   );
