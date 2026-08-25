@@ -88,7 +88,7 @@ export function EndpointDetails() {
                 <tbody>
                   {endpointStatuses.map((status: EndpointStatusRow, idx: number) => (
                     <tr key={idx} className="border-b last:border-0">
-                      <td className="py-2 px-3 text-muted-foreground">
+                      <td className="py-2 px-3 text-text-muted">
                         {status.checked ? new Date(status.checked).toLocaleString() : 'N/A'}
                       </td>
                       <td className="py-2 px-3">
@@ -103,7 +103,7 @@ export function EndpointDetails() {
                       <td className="py-2 px-3 font-mono">
                         {status.response_time !== undefined ? `${status.response_time}ms` : 'N/A'}
                       </td>
-                      <td className="py-2 px-3 text-muted-foreground truncate max-w-md">
+                      <td className="py-2 px-3 text-text-muted truncate max-w-md">
                         {status.message || '-'}
                       </td>
                     </tr>
@@ -124,7 +124,7 @@ export function EndpointDetails() {
               >
                 Previous
               </Button>
-              <span className="text-sm text-muted-foreground">Page {page}</span>
+              <span className="text-sm text-text-muted">Page {page}</span>
               <Button
                 variant="outline"
                 size="sm"

@@ -62,7 +62,7 @@ function AppContent() {
   // the origin root, so routes carry their full paths.
   return (
     <BrowserRouter>
-      <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <div className="min-h-screen flex flex-col bg-background text-text">
         <AppHeader />
         <main className="flex-1">
           {announcementMessage && (

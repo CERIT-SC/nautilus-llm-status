@@ -102,7 +102,7 @@ export function ResponseTimeChart({ endpointKey, duration, events = [] }: Respon
           </div>
         )}
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
+          <div className="absolute inset-0 flex items-center justify-center text-text-muted text-sm">
             {error}
           </div>
         )}

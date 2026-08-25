@@ -58,7 +58,7 @@ export function Home() {
         <ContentHeading>LLM Models</ContentHeading>
         <ContentBody>
           <div className="text-center py-20">
-            <ServerOff className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <ServerOff className="h-12 w-12 text-text-muted mx-auto mb-4" />
             <H3 className="mb-2">Failed to load models</H3>
             <Muted>Unable to reach the status backend.</Muted>
           </div>
@@ -73,7 +73,7 @@ export function Home() {
         <ContentHeading>LLM Models</ContentHeading>
         <ContentBody>
           <div className="text-center py-20">
-            <ServerOff className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <ServerOff className="h-12 w-12 text-text-muted mx-auto mb-4" />
             <H3 className="mb-2">No models found</H3>
             <Muted>Waiting for Prometheus data...</Muted>
           </div>

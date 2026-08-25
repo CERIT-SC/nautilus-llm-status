@@ -41,7 +41,7 @@ export function SuiteDetails() {
       {/* Suite Status List */}
       {suiteStatuses.length === 0 ? (
         <Card>
-          <div className="p-6 text-center text-muted-foreground">
+          <div className="p-6 text-center text-text-muted">
             No suite data available
           </div>
         </Card>
@@ -67,7 +67,7 @@ export function SuiteDetails() {
                   <div className="grid grid-cols-2 gap-2 text-xs mt-3">
                     {suite.latest.response_time !== undefined && (
                       <div className="bg-muted/50 rounded px-2 py-1.5">
-                        <span className="text-muted-foreground">Response Time</span>
+                        <span className="text-text-muted">Response Time</span>
                         <p className="font-mono font-medium">
                           {typeof suite.latest.response_time === 'number' 
                             ? `${suite.latest.response_time.toFixed(0)}ms` 
@@ -77,7 +77,7 @@ export function SuiteDetails() {
                     )}
                     {suite.latest.uptime_24h !== undefined && (
                       <div className="bg-muted/50 rounded px-2 py-1.5">
-                        <span className="text-muted-foreground">Uptime 24h</span>
+                        <span className="text-text-muted">Uptime 24h</span>
                         <p className="font-mono font-medium">
                           {typeof suite.latest.uptime_24h === 'number'
                             ? `${(suite.latest.uptime_24h * 100).toFixed(1)}%`
@@ -90,7 +90,7 @@ export function SuiteDetails() {
 
                 {/* Last checked */}
                 {suite.last_checked && (
-                  <div className="mt-2 text-xs text-muted-foreground">
+                  <div className="mt-2 text-xs text-text-muted">
                     Last checked {new Date(suite.last_checked).toLocaleString()}
                   </div>
                 )}

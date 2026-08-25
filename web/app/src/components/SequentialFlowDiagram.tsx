@@ -37,17 +37,17 @@ export function SequentialFlowDiagram({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <H4 className="text-sm font-medium text-muted-foreground">Start</H4>
+        <H4 className="text-sm font-medium text-text-muted">Start</H4>
         <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
           <div 
             className="h-full bg-green-500 dark:bg-green-600 rounded-full transition-all duration-300 ease-out"
             style={{ width: `${progressPercentage}%` }}
           />
         </div>
-        <H4 className="text-sm font-medium text-muted-foreground">End</H4>
+        <H4 className="text-sm font-medium text-text-muted">End</H4>
       </div>
       
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
+      <div className="flex items-center justify-between text-xs text-text-muted">
         <span>{completedSteps}/{totalSteps} steps successful</span>
         {totalDuration > 0 && (
           <span>{formatDuration(totalDuration)} total</span>
@@ -68,14 +68,14 @@ export function SequentialFlowDiagram({
       </div>
       
       <div className="mt-6 pt-4 border-t">
-        <H4 className="text-sm font-medium text-muted-foreground mb-2">Status Legend</H4>
+        <H4 className="text-sm font-medium text-text-muted mb-2">Status Legend</H4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
           {hasSuccessSteps && (
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
                 <CheckCircle className="w-3 h-3 text-white" />
               </div>
-              <span className="text-muted-foreground">Success</span>
+              <span className="text-text-muted">Success</span>
             </div>
           )}
           
@@ -84,7 +84,7 @@ export function SequentialFlowDiagram({
               <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center">
                 <XCircle className="w-3 h-3 text-white" />
               </div>
-              <span className="text-muted-foreground">Failed</span>
+              <span className="text-text-muted">Failed</span>
             </div>
           )}
           
@@ -93,7 +93,7 @@ export function SequentialFlowDiagram({
               <div className="w-4 h-4 rounded-full bg-gray-400 flex items-center justify-center">
                 <SkipForward className="w-3 h-3 text-white" />
               </div>
-              <span className="text-muted-foreground">Skipped</span>
+              <span className="text-text-muted">Skipped</span>
             </div>
           )}
           
@@ -102,7 +102,7 @@ export function SequentialFlowDiagram({
               <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-blue-200 dark:border-blue-800 flex items-center justify-center">
                 <RotateCcw className="w-3 h-3 text-white" />
               </div>
-              <span className="text-muted-foreground">Always Run</span>
+              <span className="text-text-muted">Always Run</span>
             </div>
           )}
         </div>

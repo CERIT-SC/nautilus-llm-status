@@ -102,7 +102,7 @@ function MetricCell({ label, value }: MetricCellProps) {
   return (
     <div className="rounded-md border bg-surface-raised p-2">
       <p className="text-xs text-text-muted">{label}</p>
-      <p className="font-medium text-foreground">{value}</p>
+      <p className="font-medium text-text">{value}</p>
     </div>
   );
 }
@@ -117,7 +117,7 @@ function KvCacheCell({ label, value, pct }: KvCacheCellProps) {
   return (
     <div className="rounded-md border bg-surface-raised p-2">
       <p className="text-xs text-text-muted">{label}</p>
-      <p className="font-medium text-foreground">{value}</p>
+      <p className="font-medium text-text">{value}</p>
       <Progress
         value={pct}
         className={cn("mt-2 h-1.5", kvCacheBarColor(pct))}
@@ -130,8 +130,8 @@ function TokenGenCell({ label, value, unit }: TokenGenCellProps) {
   return (
     <div className="rounded-md border bg-surface-raised p-2">
       <p className="text-xs text-text-muted">{label}</p>
-      <p className="font-medium text-foreground">{value}</p>
-      <p className="text-[11px] text-muted-foreground">{unit}</p>
+      <p className="font-medium text-text">{value}</p>
+      <p className="text-[11px] text-text-muted">{unit}</p>
     </div>
   );
 }

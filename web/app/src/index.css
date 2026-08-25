@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 @import "@e-infra/design-system/setup.css";
 @source "../node_modules/@e-infra/design-system/dist";
 

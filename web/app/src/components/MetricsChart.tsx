@@ -27,7 +27,7 @@ function LoadingSpinner() {
 
 function ErrorMessage({ message }: { message: string }) {
   return (
-    <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
+    <div className="absolute inset-0 flex items-center justify-center text-text-muted text-sm">
       {message}
     </div>
   )
@@ -86,7 +86,7 @@ export function MetricsChart({
     }
     return (
       <div
-        className="relative w-full flex items-center justify-center text-muted-foreground text-sm"
+        className="relative w-full flex items-center justify-center text-text-muted text-sm"
         style={{ height: '280px' }}
       >
         {error ?? 'No data available'}

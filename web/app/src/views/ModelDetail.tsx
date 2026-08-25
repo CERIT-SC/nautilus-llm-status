@@ -204,7 +204,7 @@ export function ModelDetail() {
         {/* Back Button */}
         <Link
           to="/status"
-          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
+          className="inline-flex items-center text-sm text-text-muted hover:text-text mb-6"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
@@ -268,7 +268,7 @@ export function ModelDetail() {
       {/* Back Button */}
       <Link
         to="/status"
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
+        className="inline-flex items-center text-sm text-text-muted hover:text-text mb-6"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
         Back
@@ -288,14 +288,14 @@ export function ModelDetail() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
         <Card className="py-2">
           <CardContent>
-            <Small className="text-muted-foreground">Status</Small>
+            <Small className="text-text-muted">Status</Small>
             <H3
               className={`${
                 model.status === "online"
                   ? "text-success"
                   : model.status === "down"
                     ? "text-error"
-                    : "text-muted-foreground"
+                    : "text-text-muted"
               }`}
             >
               {model.status === "online"
@@ -309,14 +309,14 @@ export function ModelDetail() {
 
         <Card>
           <CardContent>
-            <Small className="text-muted-foreground mb-1">First Seen</Small>
+            <Small className="text-text-muted mb-1">First Seen</Small>
             <H4 className="">{formatDate(model.first_seen)}</H4>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent>
-            <Small className="text-muted-foreground mb-1">Last Seen</Small>
+            <Small className="text-text-muted mb-1">Last Seen</Small>
             <H4>{formatTimeAgo(model.last_seen, nowMs)}</H4>
           </CardContent>
         </Card>
@@ -324,7 +324,7 @@ export function ModelDetail() {
         {gpuSummary && (
           <Card>
             <CardContent>
-              <Small className="text-muted-foreground mb-1">GPUs</Small>
+              <Small className="text-text-muted mb-1">GPUs</Small>
               <H4 className="">{gpuSummary}</H4>
             </CardContent>
           </Card>

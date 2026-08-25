@@ -144,7 +144,7 @@ export function EndpointCard({
                 {endpoint.name}
               </span>
             </CardTitle>
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground min-h-5">
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-text-muted min-h-5">
               {endpoint.group && <span className="truncate" title={endpoint.group}>{endpoint.group}</span>}
               {endpoint.group && hostname && <span>•</span>}
               {hostname && <span className="truncate" title={hostname}>{hostname}</span>}
@@ -160,7 +160,7 @@ export function EndpointCard({
           <div>
             <div className="flex items-center justify-between mb-1">
               <div className="flex-1"></div>
-              <p className="text-xs text-muted-foreground" title={showAverageResponseTime ? 'Average response time' : 'Minimum and maximum response time'}>
+              <p className="text-xs text-text-muted" title={showAverageResponseTime ? 'Average response time' : 'Minimum and maximum response time'}>
                 {formattedResponseTime}
               </p>
             </div>
@@ -184,7 +184,7 @@ export function EndpointCard({
                 />
               ))}
             </div>
-            <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+            <div className="flex items-center justify-between text-xs text-text-muted mt-1">
               <span>{oldestResultTime}</span>
               <span>{newestResultTime}</span>
             </div>

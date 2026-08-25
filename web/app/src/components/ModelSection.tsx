@@ -40,7 +40,7 @@ export function ModelSection({
         </H4>
         {collapsible && (
           <ChevronDown
-            className={`w-4 h-4 text-muted-foreground transition-transform ${collapsed ? "-rotate-90" : ""}`}
+            className={`w-4 h-4 text-text-muted transition-transform ${collapsed ? "-rotate-90" : ""}`}
           />
         )}
       </div>

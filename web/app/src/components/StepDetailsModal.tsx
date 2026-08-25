@@ -119,7 +119,7 @@ export function StepDetailsModal({
               <StatusIcon className={`w-5 h-5 ${iconClasses}`} />
               {step.name}
             </DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground mt-1">
+            <DialogDescription className="text-sm text-text-muted mt-1">
               Step {index + 1} • {formatDuration(step.duration)}
             </DialogDescription>
           </div>
@@ -190,13 +190,13 @@ export function StepDetailsModal({
               </H4>
               <div className="grid grid-cols-2 gap-4 text-xs">
                 <div>
-                  <span className="text-muted-foreground">Duration:</span>
+                  <span className="text-text-muted">Duration:</span>
                   <p className="font-mono mt-1">
                     {formatDuration(step.result.duration)}
                   </p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Success:</span>
+                  <span className="text-text-muted">Success:</span>
                   <p
                     className="mt-1"
                     style={{
@@ -278,25 +278,25 @@ export function StepDetailsModal({
               <div className="space-y-3 text-xs">
                 {step.endpoint.url && (
                   <div>
-                    <span className="text-muted-foreground">URL:</span>
+                    <span className="text-text-muted">URL:</span>
                     <p className="font-mono mt-1 break-all">{step.endpoint.url}</p>
                   </div>
                 )}
                 {step.endpoint.method && (
                   <div>
-                    <span className="text-muted-foreground">Method:</span>
+                    <span className="text-text-muted">Method:</span>
                     <p className="mt-1 font-medium">{step.endpoint.method}</p>
                   </div>
                 )}
                 {step.endpoint.interval && (
                   <div>
-                    <span className="text-muted-foreground">Interval:</span>
+                    <span className="text-text-muted">Interval:</span>
                     <p className="mt-1">{step.endpoint.interval}</p>
                   </div>
                 )}
                 {step.endpoint.timeout && (
                   <div>
-                    <span className="text-muted-foreground">Timeout:</span>
+                    <span className="text-text-muted">Timeout:</span>
                     <p className="mt-1">{step.endpoint.timeout}</p>
                   </div>
                 )}

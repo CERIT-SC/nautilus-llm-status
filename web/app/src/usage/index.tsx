@@ -67,7 +67,7 @@ export function Usage() {
       <Content className="container mx-auto px-4 pt-8">
         <ContentBody>
           <div className="text-center py-20">
-            <ServerOff className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <ServerOff className="h-12 w-12 text-text-muted mx-auto mb-4" />
             <H3 className="mb-2">Cannot reach the usage API</H3>
             <Muted>Unable to read your usage data right now.</Muted>
           </div>

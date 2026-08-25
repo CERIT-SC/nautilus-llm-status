@@ -92,7 +92,7 @@ export function FlowStep({ step, index, isLast = false, previousStep = null, onS
   
   return (
     <div 
-      className="flex items-start gap-4 relative group hover:bg-accent/30 rounded-lg p-2 -m-2 transition-colors cursor-pointer"
+      className="flex items-start gap-4 relative group hover:bg-secondary/30 rounded-lg p-2 -m-2 transition-colors cursor-pointer"
       onClick={onStepClick}
     >
       <div className="relative shrink-0">
@@ -116,7 +116,7 @@ export function FlowStep({ step, index, isLast = false, previousStep = null, onS
       <div className="flex-1 min-w-0 pt-1">
         <div className="flex items-center justify-between gap-2 mb-1">
           <H4 className="font-medium text-sm truncate">{step.name}</H4>
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
+          <span className="text-xs text-text-muted whitespace-nowrap">
             {formatDuration(step.duration)}
           </span>
         </div>

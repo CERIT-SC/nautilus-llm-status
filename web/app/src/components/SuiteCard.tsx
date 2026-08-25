@@ -168,7 +168,7 @@ export function SuiteCard({
                 {suite.name}
               </span>
             </CardTitle>
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground min-h-5">
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-text-muted min-h-5">
               {suite.group && <span className="truncate" title={suite.group}>{suite.group}</span>}
               {suite.group && endpointCount > 0 && <span>•</span>}
               {endpointCount > 0 && <span>{endpointCount} endpoint{endpointCount !== 1 ? 's' : ''}</span>}
@@ -183,9 +183,9 @@ export function SuiteCard({
         <div className="space-y-2">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-muted-foreground">Success Rate: {successRate}%</p>
+              <p className="text-xs text-text-muted">Success Rate: {successRate}%</p>
               {averageDuration !== null && (
-                <p className="text-xs text-muted-foreground">{averageDuration}ms avg</p>
+                <p className="text-xs text-text-muted">{averageDuration}ms avg</p>
               )}
             </div>
             <div className="flex gap-0.5">
@@ -208,7 +208,7 @@ export function SuiteCard({
                 />
               ))}
             </div>
-            <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+            <div className="flex items-center justify-between text-xs text-text-muted mt-1">
               <span>{oldestResultTime}</span>
               <span>{newestResultTime}</span>
             </div>
