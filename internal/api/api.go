@@ -46,6 +46,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/status/api/v1/models/", s.handleModelRoute)
 	s.mux.HandleFunc("/status/api/v1/metrics-meta", s.handleMetricsMeta)
 	s.mux.HandleFunc("/status/api/v1/health", s.handleHealth)
+	s.mux.HandleFunc("/status/api/v1/ready", s.handleReady)
 	s.mux.HandleFunc("/status/api/v1/backup", s.handleBackup)
 }
 
@@ -77,6 +78,19 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 // handleHealth serves pre-computed health JSON from cache.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	serveJSON(w, s.cache.GetHealthJSON())
+}
+
+// handleReady reports readiness for the Kubernetes readiness probe.
+// Returns 503 until the startup gap-fill has completed.
+func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	ready := s.cache.IsReady()
+	status := http.StatusOK
+	if !ready {
+		status = http.StatusServiceUnavailable
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]bool{"ready": ready})
 }
 
 // handleModelRoute routes /status/api/v1/models/{id}/metrics/{name}

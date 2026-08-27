@@ -110,7 +110,7 @@ spec:
           failureThreshold: 30
         readinessProbe:
           httpGet:
-            path: /api/v1/health
+            path: /api/v1/ready
             port: 8080
           periodSeconds: 10
           failureThreshold: 3

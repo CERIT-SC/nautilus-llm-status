@@ -69,10 +69,12 @@ func (s *Scraper) Run(done <-chan struct{}) {
 	// Immediate first scrape (so health goes green fast)
 	s.scrape()
 
-	// Run gap filler in background (can take minutes for 7-day backfill)
+	// Run gap filler in background
 	gapsDone := make(chan struct{})
 	go func() {
 		s.fillGaps(done)
+		// Gap-fill finished: the service is now ready to receive traffic.
+		s.cache.SetReady(true)
 		close(gapsDone)
 	}()
 

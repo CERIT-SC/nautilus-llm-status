@@ -56,6 +56,9 @@ type Cache struct {
 	configJSON      atomic.Value // []byte
 	healthJSON      atomic.Value // []byte
 
+	// Ready indicates the startup gap-fill (historical backfill) has completed.
+	ready atomic.Bool
+
 	// Model registry
 	modelsMu sync.RWMutex
 	models   map[int64]*modelEntry // id -> entry
@@ -535,6 +538,13 @@ func downsamplePoints(points []MetricPoint, coarseBoundary, medBoundary time.Tim
 	}
 	return result
 }
+
+// SetReady marks (or unmarks) the service as ready, i.e. the startup
+// gap-fill has completed. Queried by the /ready endpoint (readiness probe).
+func (c *Cache) SetReady(v bool) { c.ready.Store(v) }
+
+// IsReady reports whether the startup gap-fill has completed.
+func (c *Cache) IsReady() bool { return c.ready.Load() }
 
 // UpdateHealth updates the cached health JSON.
 func (c *Cache) UpdateHealth(scraperHealthy bool, scraperLastOK time.Time, promHealthy bool, promLastSuccess time.Time) {
