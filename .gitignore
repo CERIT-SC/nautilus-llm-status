@@ -37,3 +37,5 @@ docs/
 .opencode/
 CLAUDE.md
 .chunkhound
+opencode*
+.tmp
