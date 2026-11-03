@@ -123,6 +123,34 @@ describe("Home category filter", () => {
     expect(within(chatCard).queryByText("Chat")).toBeNull();
   });
 
+  it("hides the filter when every model is in a single category", () => {
+    setModels([
+      m(1, "qwen3-32b", "chat", "online"),
+      m(2, "qwen2.5-7b", "chat", "down"),
+    ]);
+    const { rerender } = renderHome();
+
+    expect(
+      screen.queryByRole("group", { name: "Filter models by category" }),
+    ).toBeNull();
+    expect(screen.getByText("Online (1)")).toBeTruthy();
+
+    // A second category arriving makes the filter appear again
+    setModels([
+      m(1, "qwen3-32b", "chat", "online"),
+      m(2, "qwen2.5-7b", "chat", "down"),
+      m(3, "whisper-large-v3", "speech", "online"),
+    ]);
+    rerender(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("group", { name: "Filter models by category" }),
+    ).toBeTruthy();
+  });
+
   it("archived-only categories get a chip; selecting retains the collapsed Archived section until expanded", () => {
     setModels(FIXTURE);
     renderHome();
@@ -146,6 +174,7 @@ describe("Home category filter", () => {
     setModels([
       m(1, "unclassified-model", undefined, "online"),
       m(2, "empty-category", "", "online"),
+      m(3, "whisper-large-v3", "speech", "online"),
     ]);
     renderHome();
 
@@ -192,8 +221,12 @@ describe("Home category filter", () => {
     fireEvent.click(chip("Speech"));
     expect(screen.queryByText("llama-4-scout-17b")).toBeNull();
 
-    // Poll returns data without any speech models
-    setModels([m(1, "llama-4-scout-17b", "chat", "online")]);
+    // Poll returns data without any speech models. Embedding keeps the
+    // filter visible so the reset itself is observable.
+    setModels([
+      m(1, "llama-4-scout-17b", "chat", "online"),
+      m(4, "mxbai-embed-large:latest", "embedding", "online"),
+    ]);
     rerender(
       <MemoryRouter>
         <Home />
@@ -211,8 +244,12 @@ describe("Home category filter", () => {
     fireEvent.click(chip("Speech"));
     expect(chip("All").getAttribute("aria-pressed")).toBe("false");
 
-    // Poll returns data without any speech models -> selection resets to All
-    setModels([m(1, "llama-4-scout-17b", "chat", "online")]);
+    // Poll returns data without any speech models -> selection resets to All.
+    // Embedding keeps the filter visible across this refresh.
+    setModels([
+      m(1, "llama-4-scout-17b", "chat", "online"),
+      m(4, "mxbai-embed-large:latest", "embedding", "online"),
+    ]);
     rerender(
       <MemoryRouter>
         <Home />

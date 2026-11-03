@@ -116,7 +116,7 @@ export function Home() {
     <Content className="container mx-auto px-4 pt-8">
       <ContentHeading>LLM Models</ContentHeading>
       <ContentBody>
-        {models.length > 0 && (
+        {availableCategories.length > 1 && (
           <CategoryFilter
             categories={availableCategories}
             selectedCategory={effectiveCategory}
