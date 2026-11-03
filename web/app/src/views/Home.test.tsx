@@ -193,6 +193,38 @@ describe("Home category filter", () => {
     expect(screen.getByText("llama-4-scout-17b")).toBeTruthy();
   });
 
+  it("does not resurrect a reset selection when its category reappears later", () => {
+    setModels(FIXTURE);
+    const { rerender } = renderHome();
+
+    fireEvent.click(chip("Speech"));
+    expect(chip("All").getAttribute("aria-pressed")).toBe("false");
+
+    // Poll returns data without any speech models -> selection resets to All
+    setModels([m(1, "llama-4-scout-17b", "chat", "online")]);
+    rerender(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+    expect(chip("All").getAttribute("aria-pressed")).toBe("true");
+
+    // A later poll brings speech models back: the filter must stay off
+    setModels([
+      m(1, "llama-4-scout-17b", "chat", "online"),
+      m(3, "whisper-large-v3", "speech", "online"),
+    ]);
+    rerender(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(chip("All").getAttribute("aria-pressed")).toBe("true");
+    expect(chip("Speech").getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByText("llama-4-scout-17b")).toBeTruthy();
+  });
+
   it("retains the selection across a refresh that still has the category", () => {
     setModels(FIXTURE);
     const { rerender } = renderHome();

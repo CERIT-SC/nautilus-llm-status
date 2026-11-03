@@ -88,6 +88,11 @@ func TestInvalidCategories(t *testing.T) {
 			wantIn: []string{`"bad"`, "["},
 		},
 		{
+			label:  "unbalanced groups survive case-wrapping",
+			cfg:    ModelsConfig{DefaultCategory: "chat", Categories: []CategoryRule{{Name: "sneaky", Match: []string{"a)|(b"}}}},
+			wantIn: []string{`"sneaky"`, "a)|(b"},
+		},
+		{
 			label:  "empty rule name",
 			cfg:    ModelsConfig{DefaultCategory: "chat", Categories: []CategoryRule{{Name: "", Match: []string{"x"}}}},
 			wantIn: []string{"name"},

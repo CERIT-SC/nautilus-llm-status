@@ -93,6 +93,12 @@ func (m *ModelsConfig) PrepareCategories() error {
 			if pattern == "" {
 				return fmt.Errorf("category rule %q: pattern must not be empty", rule.Name)
 			}
+			// Validate the bare pattern first: wrapping as (?i:...) can
+			// otherwise make some malformed patterns (e.g. "a)|(b")
+			// silently compile with unintended semantics.
+			if _, err := regexp.Compile(pattern); err != nil {
+				return fmt.Errorf("category rule %q: invalid pattern %q: %w", rule.Name, pattern, err)
+			}
 			re, err := regexp.Compile("(?i:" + pattern + ")")
 			if err != nil {
 				return fmt.Errorf("category rule %q: invalid pattern %q: %w", rule.Name, pattern, err)
