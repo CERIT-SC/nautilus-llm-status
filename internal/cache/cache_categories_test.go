@@ -2,7 +2,6 @@ package cache
 
 import (
 	"encoding/json"
-	"sort"
 	"testing"
 	"time"
 
@@ -83,6 +82,36 @@ func TestModelsJSONCategories(t *testing.T) {
 	}
 }
 
+func TestModelsJSONSortedByCategory(t *testing.T) {
+	c := New(config.DefaultConfig())
+	now := time.Now().UTC()
+	// Inserted scrambled: speech, chat, reranker, embedding, chat
+	addModel(c, 1, "Whisper-large-v3", now)
+	addModel(c, 2, "Qwen3-32b", now)
+	addModel(c, 3, "qwen3-reranker-4b", now)
+	addModel(c, 4, "nomic-embed-text-v2-moe", now)
+	addModel(c, 5, "llama-3.1-8b", now)
+	c.RebuildModelsJSON()
+
+	models := decodeModels(t, c)
+	want := []string{
+		// chat (fallback) first, then config rule order; names sort by the
+		// pre-existing byte order within a category
+		"Qwen3-32b", "llama-3.1-8b",
+		"qwen3-reranker-4b",
+		"nomic-embed-text-v2-moe",
+		"Whisper-large-v3",
+	}
+	if len(models) != len(want) {
+		t.Fatalf("got %d models, want %d", len(models), len(want))
+	}
+	for i, name := range want {
+		if models[i].ModelName != name {
+			t.Errorf("models[%d] = %q, want %q", i, models[i].ModelName, name)
+		}
+	}
+}
+
 func TestModelsJSONCategoryPreservesStatus(t *testing.T) {
 	c := New(config.DefaultConfig())
 	now := time.Now().UTC()
@@ -133,16 +162,16 @@ func TestModelsJSONCategoryPreservesStatus(t *testing.T) {
 		t.Errorf("archived model category = %q, want embedding", m.Category)
 	}
 
-	// IDs, names, ordering
+	// IDs, names; ordering is by category rank (chat, reranker, embedding,
+	// speech) then name
 	if got["Whisper-large-v3"].ID != 1 || got["Qwen3-32b"].ID != 2 || got["mxbai-embed-large:latest"].ID != 3 {
 		t.Errorf("IDs changed: %+v", got)
 	}
-	names := make([]string, 0, len(models))
-	for _, m := range models {
-		names = append(names, m.ModelName)
-	}
-	if !sort.StringsAreSorted(names) {
-		t.Errorf("models not alphabetically sorted: %v", names)
+	wantOrder := []string{"Qwen3-32b", "mxbai-embed-large:latest", "Whisper-large-v3"}
+	for i, name := range wantOrder {
+		if models[i].ModelName != name {
+			t.Errorf("models[%d] = %q, want %q (category-then-name order)", i, models[i].ModelName, name)
+		}
 	}
 
 	// Supplied latest data unchanged

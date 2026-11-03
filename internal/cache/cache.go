@@ -675,8 +675,14 @@ func (c *Cache) RebuildModelsJSON() {
 		resp = append(resp, mr)
 	}
 
-	// Sort by model name for stable ordering
+	// Sort by category (default category first, then config rule order),
+	// then by model name within each category
 	sort.Slice(resp, func(i, j int) bool {
+		ri := c.cfg.Models.CategoryRank(resp[i].Category)
+		rj := c.cfg.Models.CategoryRank(resp[j].Category)
+		if ri != rj {
+			return ri < rj
+		}
 		return resp[i].ModelName < resp[j].ModelName
 	})
 

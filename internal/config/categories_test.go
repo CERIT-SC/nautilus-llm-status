@@ -247,6 +247,46 @@ func TestLoadCategoryOverrides(t *testing.T) {
 	})
 }
 
+func TestCategoryRank(t *testing.T) {
+	cfg := DefaultConfig()
+	// Shipped rule order: reranker, embedding, speech; fallback chat.
+	ranks := map[string]int{
+		"chat":      0, // default category sorts first
+		"reranker":  1,
+		"embedding": 2,
+		"speech":    3,
+	}
+	for cat, want := range ranks {
+		if got := cfg.Models.CategoryRank(cat); got != want {
+			t.Errorf("CategoryRank(%q) = %d, want %d", cat, got, want)
+		}
+	}
+	if got := cfg.Models.CategoryRank("nonexistent"); got != 0 {
+		t.Errorf("CategoryRank(unknown) = %d, want 0", got)
+	}
+
+	// Custom config: fallback first, then rules in declared order
+	custom := &ModelsConfig{
+		DefaultCategory: "other",
+		Categories: []CategoryRule{
+			{Name: "vision", Match: []string{"clip"}},
+			{Name: "audio", Match: []string{"whisper"}},
+		},
+	}
+	if err := custom.PrepareCategories(); err != nil {
+		t.Fatalf("PrepareCategories: %v", err)
+	}
+	if got := custom.CategoryRank("other"); got != 0 {
+		t.Errorf("custom fallback rank = %d, want 0", got)
+	}
+	if got := custom.CategoryRank("vision"); got != 1 {
+		t.Errorf("vision rank = %d, want 1", got)
+	}
+	if got := custom.CategoryRank("audio"); got != 2 {
+		t.Errorf("audio rank = %d, want 2", got)
+	}
+}
+
 func TestLoadModelsConfigEnv(t *testing.T) {
 	t.Run("env fragment overrides defaults", func(t *testing.T) {
 		t.Setenv("MODELS_CONFIG", "default_category: llm\ncategories:\n  - name: big\n    match: ['70b']\n")

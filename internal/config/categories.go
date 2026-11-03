@@ -119,6 +119,26 @@ func validateCategoryName(name string) error {
 	return nil
 }
 
+// CategoryRank returns the display rank of a category: the default
+// (fallback) category sorts first — rank 0 — then categories in
+// configuration order. Unknown categories rank with the fallback.
+// Note that config rule order doubles as matching precedence
+// (first match wins), so reordering rules changes both.
+func (m *ModelsConfig) CategoryRank(category string) int {
+	if m == nil || m.compiled == nil {
+		return 0
+	}
+	if category == m.compiled.fallback {
+		return 0
+	}
+	for i, rule := range m.compiled.rules {
+		if rule.name == category {
+			return i + 1
+		}
+	}
+	return 0
+}
+
 // Classify returns the category for a model name: the first matching
 // rule's category, or the configured fallback. Zero-value (unprepared)
 // configuration classifies everything as "chat" and never compiles or
