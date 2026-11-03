@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -232,19 +234,13 @@ func Load(path string) (*Config, error) {
 	}
 
 	if path == "" {
-		if err := cfg.Models.PrepareCategories(); err != nil {
-			return nil, err
-		}
-		return cfg, nil
+		return finishLoad(cfg)
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			if err := cfg.Models.PrepareCategories(); err != nil {
-				return nil, err
-			}
-			return cfg, nil
+			return finishLoad(cfg)
 		}
 		return nil, err
 	}
@@ -276,6 +272,26 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("USAGE_BACKEND_URL"); v != "" {
 		cfg.Usage.BackendURL = v
+	}
+
+	return finishLoad(cfg)
+}
+
+// finishLoad applies the MODELS_CONFIG env override, then validates and
+// compiles category rules. It runs on every successful Load path — with
+// no config file, with a missing file, and after a file plus env vars —
+// so precedence is always defaults < file < MODELS_CONFIG.
+func finishLoad(cfg *Config) (*Config, error) {
+	// MODELS_CONFIG carries the body of the models: section as a YAML
+	// fragment. Strict decoding: unknown keys fail loudly so a pasted full
+	// config (with the models: wrapper) or a typo is reported instead of
+	// silently ignored.
+	if v := os.Getenv("MODELS_CONFIG"); v != "" {
+		dec := yaml.NewDecoder(strings.NewReader(v))
+		dec.KnownFields(true)
+		if err := dec.Decode(&cfg.Models); err != nil {
+			return nil, fmt.Errorf("MODELS_CONFIG must contain the body of the models section (e.g. default_category, categories): %w", err)
+		}
 	}
 
 	if err := cfg.Models.PrepareCategories(); err != nil {

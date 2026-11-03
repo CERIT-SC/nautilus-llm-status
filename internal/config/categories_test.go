@@ -246,3 +246,69 @@ func TestLoadCategoryOverrides(t *testing.T) {
 		}
 	})
 }
+
+func TestLoadModelsConfigEnv(t *testing.T) {
+	t.Run("env fragment overrides defaults", func(t *testing.T) {
+		t.Setenv("MODELS_CONFIG", "default_category: llm\ncategories:\n  - name: big\n    match: ['70b']\n")
+		cfg, err := Load("")
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if got := cfg.Models.Classify("llama-3.3-70b"); got != "big" {
+			t.Errorf("Classify = %q, want big", got)
+		}
+		if got := cfg.Models.Classify("Whisper-large-v3"); got != "llm" {
+			t.Errorf("Classify = %q, want llm (defaults replaced)", got)
+		}
+	})
+
+	t.Run("env overrides config file", func(t *testing.T) {
+		t.Setenv("MODELS_CONFIG", "default_category: chat\ncategories:\n  - name: fromenv\n    match: ['envmatch']\n")
+		cfg, err := Load(writeCfg(t, "models:\n  categories:\n    - name: fromfile\n      match: ['filematch']\n"))
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if got := cfg.Models.Classify("x-envmatch"); got != "fromenv" {
+			t.Errorf("Classify = %q, want fromenv", got)
+		}
+		if got := cfg.Models.Classify("x-filematch"); got != "chat" {
+			t.Errorf("Classify = %q, want chat (file rules replaced by env)", got)
+		}
+	})
+
+	t.Run("invalid yaml fails and names the env var", func(t *testing.T) {
+		t.Setenv("MODELS_CONFIG", "not: [valid")
+		if _, err := Load(""); err == nil {
+			t.Fatal("expected error for invalid MODELS_CONFIG yaml, got nil")
+		} else if !strings.Contains(err.Error(), "MODELS_CONFIG") {
+			t.Errorf("error %q does not mention MODELS_CONFIG", err.Error())
+		}
+	})
+
+	t.Run("unknown keys fail loudly", func(t *testing.T) {
+		t.Setenv("MODELS_CONFIG", "models:\n  default_category: chat\n")
+		if _, err := Load(""); err == nil {
+			t.Fatal("expected error for wrapped models: key in MODELS_CONFIG, got nil")
+		} else if !strings.Contains(err.Error(), "MODELS_CONFIG") {
+			t.Errorf("error %q does not mention MODELS_CONFIG", err.Error())
+		}
+	})
+
+	t.Run("invalid category rules fail", func(t *testing.T) {
+		t.Setenv("MODELS_CONFIG", "categories:\n  - name: bad\n    match: ['[']\n")
+		if _, err := Load(""); err == nil {
+			t.Fatal("expected error for invalid rules in MODELS_CONFIG, got nil")
+		}
+	})
+
+	t.Run("unset env keeps file behavior", func(t *testing.T) {
+		t.Setenv("MODELS_CONFIG", "")
+		cfg, err := Load("")
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if got := cfg.Models.Classify("Whisper-large-v3"); got != "speech" {
+			t.Errorf("Classify = %q, want speech (defaults)", got)
+		}
+	})
+}
