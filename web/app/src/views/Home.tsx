@@ -1,7 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ServerOff } from "lucide-react";
 import { useModels, useMetricsMeta } from "../hooks/useData";
 import { ModelSection } from "../components/ModelSection";
+import { CategoryFilter } from "../components/CategoryFilter";
+import {
+  filterModelsByCategory,
+  getAvailableCategories,
+} from "../lib/model-categories";
 import { SkeletonGrid } from "../components/skeletons/SkeletonGrid";
 import {
   Content,
@@ -22,21 +27,37 @@ export function Home() {
   const models = useMemo(() => data ?? [], [data]);
   const { data: metricsMeta = [] } = useMetricsMeta();
 
+  // Local filter selection. If a refresh removes the selected category,
+  // reconcile back to "All" instead of stranding a hidden selection.
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const availableCategories = useMemo(
+    () => getAvailableCategories(models),
+    [models],
+  );
+  const effectiveCategory =
+    selectedCategory !== null && availableCategories.includes(selectedCategory)
+      ? selectedCategory
+      : null;
+  const visibleModels = useMemo(
+    () => filterModelsByCategory(models, effectiveCategory),
+    [models, effectiveCategory],
+  );
+
   const summaryMeta = useMemo(
     () => metricsMeta.filter((m) => m.summary),
     [metricsMeta],
   );
   const onlineModels = useMemo(
-    () => models.filter((m) => m.status === "online"),
-    [models],
+    () => visibleModels.filter((m) => m.status === "online"),
+    [visibleModels],
   );
   const downModels = useMemo(
-    () => models.filter((m) => m.status === "down"),
-    [models],
+    () => visibleModels.filter((m) => m.status === "down"),
+    [visibleModels],
   );
   const archivedModels = useMemo(
-    () => models.filter((m) => m.status === "archived"),
-    [models],
+    () => visibleModels.filter((m) => m.status === "archived"),
+    [visibleModels],
   );
 
   if (isLoading) {
@@ -86,6 +107,13 @@ export function Home() {
     <Content className="container mx-auto px-4 pt-8">
       <ContentHeading>LLM Models</ContentHeading>
       <ContentBody>
+        {models.length > 0 && (
+          <CategoryFilter
+            categories={availableCategories}
+            selectedCategory={effectiveCategory}
+            onChange={setSelectedCategory}
+          />
+        )}
         {onlineModels.length > 0 && (
           <ModelSection
             title="Online"
