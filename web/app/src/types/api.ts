@@ -33,6 +33,7 @@ export interface Model {
   namespace: string
   container: string
   status: 'online' | 'down' | 'archived'
+  category?: string
   first_seen: string
   last_seen: string
   uptime?: boolean[]
