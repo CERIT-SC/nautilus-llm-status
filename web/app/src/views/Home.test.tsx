@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Home } from "./Home";
 import type { MetricsMeta, Model } from "../types/api";
@@ -110,6 +110,17 @@ describe("Home category filter", () => {
 
     expect(screen.getByText("llama-4-scout-17b")).toBeTruthy();
     expect(screen.getByText("Online (4)")).toBeTruthy();
+  });
+
+  it("shows the category as a corner pill and hides it entirely for chat", () => {
+    setModels(FIXTURE);
+    renderHome();
+
+    const speechCard = screen.getByLabelText("whisper-large-v3 — online");
+    expect(within(speechCard).getByText("Speech")).toBeTruthy();
+
+    const chatCard = screen.getByLabelText("qwen3-32b — online");
+    expect(within(chatCard).queryByText("Chat")).toBeNull();
   });
 
   it("archived-only categories get a chip; selecting retains the collapsed Archived section until expanded", () => {

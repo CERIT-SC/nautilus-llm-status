@@ -10,11 +10,9 @@ import {
   Progress,
   cn,
 } from "@e-infra/design-system";
-import { StatusDot } from "./StatusDot";
 import { CategoryBadge } from "./CategoryBadge";
 import { getModelCategory } from "../lib/model-categories";
-import { UptimeBar } from "./UptimeBar";
-import { formatTimeAgo } from "../utils/time";
+import { UptimeBar } from "./UptimeBar";import { formatTimeAgo } from "../utils/time";
 
 // ─── types ──────────────────────────────────────────────────────────────────
 
@@ -177,11 +175,11 @@ export function ModelCard({ model, metricsMeta }: ModelCardProps) {
                 {model.model_name}
               </CardTitle>
               <span className="shrink-0 pr-1">
-                <StatusDot status={model.status} />
+                <CategoryBadge
+                  category={getModelCategory(model)}
+                  status={model.status}
+                />
               </span>
-            </div>
-            <div className="mt-1">
-              <CategoryBadge category={getModelCategory(model)} />
             </div>
             <CardDescription className="truncate mt-0.5 text-text-muted pl-0.5">
               {model.namespace} / {model.container}

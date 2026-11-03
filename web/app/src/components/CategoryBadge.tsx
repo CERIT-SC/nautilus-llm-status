@@ -1,21 +1,29 @@
-import { Badge } from "@e-infra/design-system";
+import { StatusDot } from "./StatusDot";
 import { getCategoryLabel } from "../lib/model-categories";
+import type { Model } from "../types/api";
 
-// Dot colors per shipped category; custom ids fall back to neutral gray.
-const CATEGORY_DOT_CLS: Record<string, string> = {
-  chat: "bg-blue-400",
-  embedding: "bg-green-400",
-  reranker: "bg-pink-400",
-  speech: "bg-yellow-400",
-};
+// The backend's fallback category; a card in the default category shows
+// only the plain status dot, no pill.
+const DEFAULT_CATEGORY = "chat";
 
-export function CategoryBadge({ category }: { category: string }) {
+interface CategoryBadgeProps {
+  category: string;
+  status: Model["status"];
+}
+
+/**
+ * The card's top-right indicator. For the default category it is the
+ * plain status dot; for a real category the dot extends into a pill —
+ * category label first, status dot on its right.
+ */
+export function CategoryBadge({ category, status }: CategoryBadgeProps) {
+  if (category === DEFAULT_CATEGORY) {
+    return <StatusDot status={status} />;
+  }
   return (
-    <Badge variant="secondary" className="w-fit">
-      <span
-        className={`w-2 h-2 rounded-full ${CATEGORY_DOT_CLS[category] ?? "bg-gray-400"}`}
-      />
-      {getCategoryLabel(category)}
-    </Badge>
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-secondary py-0.5 pr-2 pl-2.5 text-xs font-medium whitespace-nowrap shrink-0 text-secondary-foreground">
+      <span>{getCategoryLabel(category)}</span>
+      <StatusDot status={status} />
+    </span>
   );
 }
