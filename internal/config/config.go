@@ -89,6 +89,10 @@ type UIConfig struct {
 type ModelsConfig struct {
 	DownThreshold    time.Duration `yaml:"down_threshold"`
 	ArchiveThreshold time.Duration `yaml:"archive_threshold"`
+	DefaultCategory  string         `yaml:"default_category"`
+	Categories       []CategoryRule `yaml:"categories"`
+
+	compiled *compiledCategories // set by PrepareCategories; not serialized
 }
 
 // UsageConfig configures the reverse proxy to the llm-stats usage backend.
@@ -157,7 +161,7 @@ func DefaultScrapeRules() []ScrapeRule {
 }
 
 func DefaultConfig() *Config {
-	return &Config{
+	cfg := &Config{
 		Prometheus: PrometheusConfig{
 			URL:            "https://prometheus.nrp-nautilus.io",
 			ScrapeInterval: 60 * time.Second,
@@ -185,11 +189,19 @@ func DefaultConfig() *Config {
 		Models: ModelsConfig{
 			DownThreshold:    5 * time.Minute,
 			ArchiveThreshold: 7 * 24 * time.Hour,
+			DefaultCategory:  "chat",
+			Categories:       defaultCategoryRules(),
 		},
 		Usage: UsageConfig{
 			BackendURL: "http://127.0.0.1:8000",
 		},
 	}
+
+	if err := cfg.Models.PrepareCategories(); err != nil {
+		panic("config: invalid built-in category defaults: " + err.Error())
+	}
+
+	return cfg
 }
 
 func Load(path string) (*Config, error) {
@@ -220,12 +232,18 @@ func Load(path string) (*Config, error) {
 	}
 
 	if path == "" {
+		if err := cfg.Models.PrepareCategories(); err != nil {
+			return nil, err
+		}
 		return cfg, nil
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
+			if err := cfg.Models.PrepareCategories(); err != nil {
+				return nil, err
+			}
 			return cfg, nil
 		}
 		return nil, err
@@ -258,6 +276,10 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("USAGE_BACKEND_URL"); v != "" {
 		cfg.Usage.BackendURL = v
+	}
+
+	if err := cfg.Models.PrepareCategories(); err != nil {
+		return nil, err
 	}
 
 	return cfg, nil
