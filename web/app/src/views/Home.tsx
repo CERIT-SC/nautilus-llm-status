@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ServerOff } from "lucide-react";
 import { useModels, useMetricsMeta } from "../hooks/useData";
 import { ModelSection } from "../components/ModelSection";
@@ -34,18 +34,15 @@ export function Home() {
     () => getAvailableCategories(models),
     [models],
   );
-  const effectiveCategory =
-    selectedCategory !== null && availableCategories.includes(selectedCategory)
-      ? selectedCategory
-      : null;
-
-  // Clear a stale selection once it has been reconciled away, so a later
-  // poll that re-adds the category cannot silently re-enable the filter.
-  useEffect(() => {
-    if (selectedCategory !== null && !availableCategories.includes(selectedCategory)) {
-      setSelectedCategory(null);
-    }
-  }, [selectedCategory, availableCategories]);
+  // Clear a stale selection synchronously during render (React's derived
+  // reset pattern — no effect, no cascading render), so a later poll that
+  // re-adds the category cannot silently re-enable the filter.
+  const hasStaleSelection =
+    selectedCategory !== null && !availableCategories.includes(selectedCategory);
+  if (hasStaleSelection) {
+    setSelectedCategory(null);
+  }
+  const effectiveCategory = hasStaleSelection ? null : selectedCategory;
 
   const visibleModels = useMemo(
     () => filterModelsByCategory(models, effectiveCategory),
