@@ -23,7 +23,7 @@ export function CategoryFilter({
       type="single"
       variant="outline"
       size="sm"
-      spacing={8}
+      spacing={2}
       aria-label="Filter models by category"
       className="flex-wrap justify-start"
       value={selectedCategory ?? ""}
