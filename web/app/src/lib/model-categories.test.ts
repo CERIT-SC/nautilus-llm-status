@@ -59,6 +59,19 @@ describe("getAvailableCategories", () => {
     ]);
   });
 
+  it("sorts mixed-case ids case-insensitively", () => {
+    const models = [
+      model({ id: 1, model_name: "a", category: "Decision" }),
+      model({ id: 2, model_name: "b", category: "chat" }),
+      model({ id: 3, model_name: "c", category: "Embedding" }),
+    ];
+    expect(getAvailableCategories(models)).toEqual([
+      "chat",
+      "Decision",
+      "Embedding",
+    ]);
+  });
+
   it("includes archived models and applies the chat fallback", () => {
     const models = [
       model({ id: 1, model_name: "a", category: "vision", status: "archived" }),

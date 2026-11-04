@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // CategoryRule assigns models whose name matches any pattern to one
@@ -37,8 +38,9 @@ type compiledCategories struct {
 }
 
 // categoryNameRe constrains category identifiers used in config and in
-// the UI.
-var categoryNameRe = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
+// the UI. Operators may write the display casing directly ("Decision");
+// ids remain otherwise lowercase-identifier shaped.
+var categoryNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 
 // defaultCategoryRules is the shipped classification. Order matters:
 // more specific rules must precede broader ones so that e.g.
@@ -74,8 +76,8 @@ func (m *ModelsConfig) PrepareCategories() error {
 		if rule.Name == "" {
 			return fmt.Errorf("category rule name must not be empty")
 		}
-		if rule.Name == "all" {
-			return fmt.Errorf(`category rule name "all" is reserved`)
+		if strings.EqualFold(rule.Name, "all") {
+			return fmt.Errorf(`category rule name "all" is reserved (any casing)`)
 		}
 		if err := validateCategoryName(rule.Name); err != nil {
 			return fmt.Errorf("category rule name %q: %w", rule.Name, err)
@@ -114,7 +116,7 @@ func (m *ModelsConfig) PrepareCategories() error {
 
 func validateCategoryName(name string) error {
 	if !categoryNameRe.MatchString(name) {
-		return fmt.Errorf("must match ^[a-z][a-z0-9_-]*$")
+		return fmt.Errorf("must match ^[A-Za-z][A-Za-z0-9_-]*$ (letters, digits, - and _)")
 	}
 	return nil
 }

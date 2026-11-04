@@ -111,6 +111,11 @@ func TestInvalidCategories(t *testing.T) {
 			wantIn: []string{"all"},
 		},
 		{
+			label:  "reserved rule name different case",
+			cfg:    ModelsConfig{DefaultCategory: "chat", Categories: []CategoryRule{{Name: "All", Match: []string{"x"}}}},
+			wantIn: []string{"all"},
+		},
+		{
 			label:  "bad identifier",
 			cfg:    ModelsConfig{DefaultCategory: "chat", Categories: []CategoryRule{{Name: "Bad Name", Match: []string{"x"}}}},
 			wantIn: []string{"Bad Name"},
@@ -119,8 +124,7 @@ func TestInvalidCategories(t *testing.T) {
 			label:  "bad identifier leading digit",
 			cfg:    ModelsConfig{DefaultCategory: "chat", Categories: []CategoryRule{{Name: "1bad", Match: []string{"x"}}}},
 			wantIn: []string{"1bad"},
-		},
-		{
+		},		{
 			label:  "empty match slice",
 			cfg:    ModelsConfig{DefaultCategory: "chat", Categories: []CategoryRule{{Name: "x", Match: nil}}},
 			wantIn: []string{`"x"`},
@@ -284,6 +288,25 @@ func TestCategoryRank(t *testing.T) {
 	}
 	if got := custom.CategoryRank("audio"); got != 2 {
 		t.Errorf("audio rank = %d, want 2", got)
+	}
+}
+
+func TestMixedCaseCategoryNames(t *testing.T) {
+	// Operators may write the display casing directly in the config:
+	// `name: Decision` classifies and displays as "Decision".
+	cfg := DefaultConfig()
+	cfg.Models.Categories = []CategoryRule{
+		{Name: "Decision", Match: []string{"sr-d3"}},
+		{Name: "vision", Match: []string{"clip"}},
+	}
+	if err := cfg.Models.PrepareCategories(); err != nil {
+		t.Fatalf("PrepareCategories: %v", err)
+	}
+	if got := cfg.Models.Classify("vllm-sr-d3-flash"); got != "Decision" {
+		t.Errorf("Classify = %q, want Decision", got)
+	}
+	if got := cfg.Models.CategoryRank("Decision"); got != 1 {
+		t.Errorf("CategoryRank(Decision) = %d, want 1", got)
 	}
 }
 

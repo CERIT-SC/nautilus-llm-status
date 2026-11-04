@@ -30,7 +30,7 @@ export function getAvailableCategories(models: Model[]): string[] {
   for (const model of models) {
     set.add(getModelCategory(model));
   }
-  return [...set].sort();
+  return [...set].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 }
 
 /** null means "All" — no filtering. */

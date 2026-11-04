@@ -134,7 +134,7 @@ describe("Home category filter", () => {
     const { rerender } = renderHome();
 
     expect(
-      screen.queryByRole("radiogroup", { name: "Filter models by category" }),
+      screen.queryByLabelText("Filter models by category"),
     ).toBeNull();
     expect(screen.getByText("Online (1)")).toBeTruthy();
 
@@ -150,7 +150,7 @@ describe("Home category filter", () => {
       </MemoryRouter>,
     );
     expect(
-      screen.getByRole("radiogroup", { name: "Filter models by category" }),
+      screen.getByLabelText("Filter models by category"),
     ).toBeTruthy();
   });
 
