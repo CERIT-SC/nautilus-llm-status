@@ -3,8 +3,6 @@ import { getCategoryLabel } from "../lib/model-categories";
 
 interface CategoryFilterProps {
   categories: string[];
-  /** Optional label lookup (from model responses); title-cased id when absent. */
-  labels?: Record<string, string>;
   selectedCategory: string | null;
   onChange: (category: string | null) => void;
 }
@@ -17,7 +15,6 @@ interface CategoryFilterProps {
  */
 export function CategoryFilter({
   categories,
-  labels,
   selectedCategory,
   onChange,
 }: CategoryFilterProps) {
@@ -38,7 +35,7 @@ export function CategoryFilter({
           value={category}
           className="rounded-full"
         >
-          {labels && labels[category] ? labels[category] : getCategoryLabel(category)}
+          {getCategoryLabel(category)}
         </ToggleGroupItem>
       ))}
     </ToggleGroup>

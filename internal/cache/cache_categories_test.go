@@ -112,39 +112,6 @@ func TestModelsJSONSortedByCategory(t *testing.T) {
 	}
 }
 
-func TestModelsJSONCategoryLabels(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Models.Categories = []config.CategoryRule{
-		{Name: "decision", Match: []string{"sr-d3"}, Label: "LLM judge"},
-		{Name: "vision", Match: []string{"llama"}},
-	}
-	if err := cfg.Models.PrepareCategories(); err != nil {
-		t.Fatalf("PrepareCategories: %v", err)
-	}
-	c := New(cfg)
-	now := time.Now().UTC()
-	addModel(c, 1, "Qwen3-32b", now)
-	addModel(c, 2, "vllm-sr-d3-flash", now)
-	addModel(c, 3, "llama-4-scout-17b", now)
-	c.RebuildModelsJSON()
-
-	got := byName(decodeModels(t, c))
-	want := map[string]string{
-		"Qwen3-32b":        "Chat",      // fallback title-cased
-		"vllm-sr-d3-flash": "LLM judge", // explicit label
-		"llama-4-scout-17b": "Vision",   // unlabeled rule title-cased
-	}
-	for name, label := range want {
-		m, ok := got[name]
-		if !ok {
-			t.Fatalf("model %q missing from JSON", name)
-		}
-		if m.CategoryLabel != label {
-			t.Errorf("model %q category_label = %q, want %q", name, m.CategoryLabel, label)
-		}
-	}
-}
-
 func TestModelsJSONCategoryPreservesStatus(t *testing.T) {
 	c := New(config.DefaultConfig())
 	now := time.Now().UTC()

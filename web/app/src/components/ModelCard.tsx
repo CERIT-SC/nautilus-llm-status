@@ -178,7 +178,6 @@ export function ModelCard({ model, metricsMeta }: ModelCardProps) {
                 <CategoryBadge
                   category={getModelCategory(model)}
                   status={model.status}
-                  label={model.category_label}
                 />
               </span>
             </div>

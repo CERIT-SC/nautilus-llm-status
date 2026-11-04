@@ -287,65 +287,6 @@ func TestCategoryRank(t *testing.T) {
 	}
 }
 
-func TestCategoryLabels(t *testing.T) {
-	t.Run("defaults title-case to the shipped labels", func(t *testing.T) {
-		cfg := DefaultConfig()
-		got := cfg.Models.CategoryLabels()
-		want := []CategoryLabel{
-			{Name: "chat", Label: "Chat"},
-			{Name: "reranker", Label: "Reranker"},
-			{Name: "embedding", Label: "Embedding"},
-			{Name: "speech", Label: "Speech"},
-		}
-		if len(got) != len(want) {
-			t.Fatalf("got %d labels, want %d: %+v", len(got), len(want), got)
-		}
-		for i := range want {
-			if got[i] != want[i] {
-				t.Errorf("labels[%d] = %+v, want %+v", i, got[i], want[i])
-			}
-		}
-	})
-
-	t.Run("explicit label wins, unlabeled rules title-case", func(t *testing.T) {
-		cfg := DefaultConfig()
-		cfg.Models.Categories = []CategoryRule{
-			{Name: "decision", Match: []string{"sr-d3"}, Label: "LLM judge"},
-			{Name: "vision-support", Match: []string{"clip"}},
-		}
-		if err := cfg.Models.PrepareCategories(); err != nil {
-			t.Fatalf("PrepareCategories: %v", err)
-		}
-		got := cfg.Models.CategoryLabels()
-		want := []CategoryLabel{
-			{Name: "chat", Label: "Chat"}, // fallback, not a rule
-			{Name: "decision", Label: "LLM judge"},
-			{Name: "vision-support", Label: "Vision Support"},
-		}
-		if len(got) != len(want) {
-			t.Fatalf("got %d labels, want %d: %+v", len(got), len(want), got)
-		}
-		for i := range want {
-			if got[i] != want[i] {
-				t.Errorf("labels[%d] = %+v, want %+v", i, got[i], want[i])
-			}
-		}
-	})
-
-	t.Run("rule sharing the fallback name provides its label", func(t *testing.T) {
-		cfg := DefaultConfig()
-		cfg.Models.Categories = []CategoryRule{{Name: "chat", Match: []string{"never"}, Label: "Dialogue"}}
-		if err := cfg.Models.PrepareCategories(); err != nil {
-			t.Fatalf("PrepareCategories: %v", err)
-		}
-		for _, cl := range cfg.Models.CategoryLabels() {
-			if cl.Name == "chat" && cl.Label != "Dialogue" {
-				t.Errorf("chat label = %q, want rule label Dialogue", cl.Label)
-			}
-		}
-	})
-}
-
 func TestLoadModelsConfigEnv(t *testing.T) {
 	t.Run("env fragment overrides defaults", func(t *testing.T) {
 		t.Setenv("MODELS_CONFIG", "default_category: llm\ncategories:\n  - name: big\n    match: ['70b']\n")

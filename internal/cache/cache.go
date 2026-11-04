@@ -565,17 +565,16 @@ func (c *Cache) UpdateHealth(scraperHealthy bool, scraperLastOK time.Time, promH
 // --- JSON snapshot builders ---
 
 type modelResponse struct {
-	ID            int64                  `json:"id"`
-	Namespace     string                 `json:"namespace"`
-	Container     string                 `json:"container"`
-	ModelName     string                 `json:"model_name"`
-	Status        string                 `json:"status"`
-	Category      string                 `json:"category"`
-	CategoryLabel string                 `json:"category_label,omitempty"`
-	FirstSeen     string                 `json:"first_seen"`
-	LastSeen      string                 `json:"last_seen"`
-	Latest        map[string]interface{} `json:"latest,omitempty"`
-	Uptime        []bool                 `json:"uptime,omitempty"`
+	ID        int64                  `json:"id"`
+	Namespace string                 `json:"namespace"`
+	Container string                 `json:"container"`
+	ModelName string                 `json:"model_name"`
+	Status    string                 `json:"status"`
+	Category  string                 `json:"category"`
+	FirstSeen string                 `json:"first_seen"`
+	LastSeen  string                 `json:"last_seen"`
+	Latest    map[string]interface{} `json:"latest,omitempty"`
+	Uptime    []bool                 `json:"uptime,omitempty"`
 }
 
 // RebuildModelsJSON rebuilds the pre-serialized models list JSON.
@@ -594,11 +593,6 @@ func (c *Cache) RebuildModelsJSON() {
 	}
 	expectedPoints := float64(uptimeBucketSec) / float64(scrapeIntervalSec)
 
-	categoryLabels := make(map[string]string)
-	for _, cl := range c.cfg.Models.CategoryLabels() {
-		categoryLabels[cl.Name] = cl.Label
-	}
-
 	resp := make([]modelResponse, 0, len(c.models))
 	for _, m := range c.models {
 		status := "online"
@@ -609,16 +603,15 @@ func (c *Cache) RebuildModelsJSON() {
 		}
 
 		mr := modelResponse{
-			ID:            m.ID,
-			Namespace:     m.Namespace,
-			Container:     m.Container,
-			ModelName:     m.ModelName,
-			Status:        status,
-			Category:      c.cfg.Models.Classify(m.ModelName),
-			CategoryLabel: categoryLabels[c.cfg.Models.Classify(m.ModelName)],
-			FirstSeen:     m.FirstSeen.Format(time.RFC3339),
-			LastSeen:      m.LastSeen.Format(time.RFC3339),
-			Latest:        make(map[string]interface{}),
+			ID:        m.ID,
+			Namespace: m.Namespace,
+			Container: m.Container,
+			ModelName: m.ModelName,
+			Status:    status,
+			Category:  c.cfg.Models.Classify(m.ModelName),
+			FirstSeen: m.FirstSeen.Format(time.RFC3339),
+			LastSeen:  m.LastSeen.Format(time.RFC3339),
+			Latest:    make(map[string]interface{}),
 		}
 
 		// Uptime from tracker
