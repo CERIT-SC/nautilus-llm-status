@@ -60,6 +60,8 @@ func renameModelName(modelName string) string {
 		"nomic-embed-text-v2-moe":        true,
 		"qwen3-embedding-4b":             true,
 		"qwen3-reranker-4b":              true,
+		"embeddinggemma-2":               true,
+		"nemotron-3-5-embed-8b":          true,
 	}
 
 	if noCapitalize[modelName] {
