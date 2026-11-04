@@ -4,6 +4,7 @@ import { useModels, useMetricsMeta } from "../hooks/useData";
 import { ModelSection } from "../components/ModelSection";
 import { CategoryFilter } from "../components/CategoryFilter";
 import {
+  categoryLabelMap,
   filterModelsByCategory,
   getAvailableCategories,
 } from "../lib/model-categories";
@@ -34,6 +35,7 @@ export function Home() {
     () => getAvailableCategories(models),
     [models],
   );
+  const categoryLabels = useMemo(() => categoryLabelMap(models), [models]);
   // Clear a stale selection synchronously during render (React's derived
   // reset pattern — no effect, no cascading render), so a later poll that
   // re-adds the category cannot silently re-enable the filter.
@@ -116,6 +118,7 @@ export function Home() {
         {availableCategories.length > 1 && (
           <CategoryFilter
             categories={availableCategories}
+            labels={categoryLabels}
             selectedCategory={effectiveCategory}
             onChange={setSelectedCategory}
           />

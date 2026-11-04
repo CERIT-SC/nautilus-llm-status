@@ -34,6 +34,7 @@ export interface Model {
   container: string
   status: 'online' | 'down' | 'archived'
   category?: string
+  category_label?: string
   first_seen: string
   last_seen: string
   uptime?: boolean[]

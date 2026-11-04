@@ -3,20 +3,24 @@ package config
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // CategoryRule assigns models whose name matches any pattern to one
 // category. Patterns are matched case-insensitively; within a rule they
-// are ORed, and across rules the first matching rule wins.
+// are ORed, and across rules the first matching rule wins. Label is an
+// optional display name; when empty the UI title-cases the id.
 type CategoryRule struct {
 	Name  string   `yaml:"name"`
 	Match []string `yaml:"match"`
+	Label string   `yaml:"label"`
 }
 
 // compiledRule is a validated category rule with its patterns compiled.
 type compiledRule struct {
-	name string
-	res  []*regexp.Regexp
+	name  string
+	label string
+	res   []*regexp.Regexp
 }
 
 func (r compiledRule) matches(modelName string) bool {
@@ -88,7 +92,7 @@ func (m *ModelsConfig) PrepareCategories() error {
 		if len(rule.Match) == 0 {
 			return fmt.Errorf("category rule %q: match must not be empty", rule.Name)
 		}
-		compiled := compiledRule{name: rule.Name}
+		compiled := compiledRule{name: rule.Name, label: strings.TrimSpace(rule.Label)}
 		for _, pattern := range rule.Match {
 			if pattern == "" {
 				return fmt.Errorf("category rule %q: pattern must not be empty", rule.Name)
@@ -117,6 +121,52 @@ func validateCategoryName(name string) error {
 		return fmt.Errorf("must match ^[a-z][a-z0-9_-]*$")
 	}
 	return nil
+}
+
+// CategoryLabel is the display name of one category, served in the
+// config snapshot and on each model response.
+type CategoryLabel struct {
+	Name  string `json:"name"`
+	Label string `json:"label"`
+}
+
+// titleCaseID turns a category id into a display default:
+// "decision-support" -> "Decision Support".
+func titleCaseID(id string) string {
+	parts := strings.FieldsFunc(id, func(r rune) bool { return r == '-' || r == '_' })
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p == "" {
+			continue
+		}
+		out = append(out, strings.ToUpper(p[:1])+p[1:])
+	}
+	return strings.Join(out, " ")
+}
+
+// CategoryLabels returns the display label for every active category:
+// the default category first, then rules in configuration order. A
+// rule's explicit label wins; unlabeled rules title-case their id.
+func (m *ModelsConfig) CategoryLabels() []CategoryLabel {
+	if m == nil || m.compiled == nil {
+		return nil
+	}
+	labels := make([]CategoryLabel, 0, len(m.compiled.rules)+1)
+	fallbackIsRule := false
+	for _, rule := range m.compiled.rules {
+		label := rule.label
+		if label == "" {
+			label = titleCaseID(rule.name)
+		}
+		if rule.name == m.compiled.fallback {
+			fallbackIsRule = true
+		}
+		labels = append(labels, CategoryLabel{Name: rule.name, Label: label})
+	}
+	if !fallbackIsRule {
+		labels = append([]CategoryLabel{{Name: m.compiled.fallback, Label: titleCaseID(m.compiled.fallback)}}, labels...)
+	}
+	return labels
 }
 
 // CategoryRank returns the display rank of a category: the default

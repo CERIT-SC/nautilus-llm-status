@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  categoryLabelMap,
   filterModelsByCategory,
   getAvailableCategories,
   getCategoryLabel,
   getModelCategory,
+  getModelCategoryLabel,
 } from "./model-categories";
 import type { Model } from "../types/api";
 
@@ -26,8 +28,35 @@ describe("getCategoryLabel", () => {
     expect(getCategoryLabel("speech")).toBe("Speech");
   });
 
-  it("returns raw identifiers for custom categories", () => {
-    expect(getCategoryLabel("vision")).toBe("vision");
+  it("returns raw identifiers title-cased for custom categories", () => {
+    expect(getCategoryLabel("vision")).toBe("Vision");
+    expect(getCategoryLabel("decision")).toBe("Decision");
+    expect(getCategoryLabel("decision-support")).toBe("Decision Support");
+  });
+});
+
+describe("getModelCategoryLabel", () => {
+  it("prefers the backend-provided label", () => {
+    expect(getModelCategoryLabel({ category: "decision", category_label: "LLM judge" })).toBe("LLM judge");
+  });
+
+  it("falls back to the category label mapping when the field is missing", () => {
+    expect(getModelCategoryLabel({ category: "speech" })).toBe("Speech");
+    expect(getModelCategoryLabel({})).toBe("Chat");
+  });
+});
+
+describe("categoryLabelMap", () => {
+  it("maps each category id to its first model's label", () => {
+    const models = [
+      model({ id: 1, model_name: "a", category: "decision", category_label: "LLM judge" }),
+      model({ id: 2, model_name: "b", category: "chat" }),
+      model({ id: 3, model_name: "c", category: "decision", category_label: "ignored" }),
+    ];
+    expect(categoryLabelMap(models)).toEqual({
+      decision: "LLM judge",
+      chat: "Chat",
+    });
   });
 });
 

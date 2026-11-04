@@ -25,6 +25,7 @@ function m(
   name: string,
   category: string | undefined,
   status: Model["status"],
+  category_label?: string,
 ): Model {
   return {
     id,
@@ -33,6 +34,7 @@ function m(
     container: name,
     status,
     category,
+    category_label,
     first_seen: "2026-01-01T00:00:00Z",
     last_seen: "2026-01-01T00:00:00Z",
   };
@@ -46,6 +48,7 @@ const FIXTURE: Model[] = [
   m(5, "nomic-embed-text-v2-moe", "embedding", "down"),
   m(6, "canary-1b-flash", "speech", "down"),
   m(7, "old-model", "vision", "archived"),
+  m(8, "vllm-sr-d3-flash", "decision", "online", "LLM judge"),
 ];
 
 function renderHome() {
@@ -77,7 +80,7 @@ describe("Home category filter", () => {
     setModels(FIXTURE);
     renderHome();
 
-    expect(screen.getByText("Online (4)")).toBeTruthy();
+    expect(screen.getByText("Online (5)")).toBeTruthy();
     expect(screen.getByText("Temporarily Down (2)")).toBeTruthy();
     expect(screen.getByText("Archived (1)")).toBeTruthy();
     expect(screen.getByText("llama-4-scout-17b")).toBeTruthy();
@@ -111,7 +114,7 @@ describe("Home category filter", () => {
     fireEvent.click(chip("Speech"));
 
     expect(screen.getByText("llama-4-scout-17b")).toBeTruthy();
-    expect(screen.getByText("Online (4)")).toBeTruthy();
+    expect(screen.getByText("Online (5)")).toBeTruthy();
     expect(chip("Speech").getAttribute("aria-checked")).toBe("false");
   });
 
@@ -124,6 +127,11 @@ describe("Home category filter", () => {
 
     const chatCard = screen.getByLabelText("qwen3-32b — online");
     expect(within(chatCard).queryByText("Chat")).toBeNull();
+
+    // A backend-provided label is shown as-is, in chip and pill
+    expect(chip("LLM judge")).toBeTruthy();
+    const decisionCard = screen.getByLabelText("vllm-sr-d3-flash — online");
+    expect(within(decisionCard).getByText("LLM judge")).toBeTruthy();
   });
 
   it("hides the filter when every model is in a single category", () => {
@@ -134,7 +142,7 @@ describe("Home category filter", () => {
     const { rerender } = renderHome();
 
     expect(
-      screen.queryByRole("radiogroup", { name: "Filter models by category" }),
+      screen.queryByLabelText("Filter models by category"),
     ).toBeNull();
     expect(screen.getByText("Online (1)")).toBeTruthy();
 
@@ -150,7 +158,7 @@ describe("Home category filter", () => {
       </MemoryRouter>,
     );
     expect(
-      screen.getByRole("radiogroup", { name: "Filter models by category" }),
+      screen.getByLabelText("Filter models by category"),
     ).toBeTruthy();
   });
 
@@ -158,8 +166,8 @@ describe("Home category filter", () => {
     setModels(FIXTURE);
     renderHome();
 
-    // Custom category shows its literal identifier
-    const visionChip = chip("vision");
+    // Custom category shows its title-cased identifier
+    const visionChip = chip("Vision");
     expect(visionChip).toBeTruthy();
 
     fireEvent.click(visionChip);

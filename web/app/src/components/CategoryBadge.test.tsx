@@ -24,8 +24,13 @@ describe("CategoryBadge", () => {
     expect(screen.getByText("Speech").nextElementSibling?.querySelector("span[title='down']")).toBeTruthy();
   });
 
-  it("renders raw identifiers for custom categories", () => {
+  it("renders raw identifiers title-cased for custom categories", () => {
     render(<CategoryBadge category="vision" status="online" />);
-    expect(screen.getByText("vision")).toBeTruthy();
+    expect(screen.getByText("Vision")).toBeTruthy();
+  });
+
+  it("prefers the backend-provided label", () => {
+    render(<CategoryBadge category="decision" status="online" label="LLM judge" />);
+    expect(screen.getByText("LLM judge")).toBeTruthy();
   });
 });
