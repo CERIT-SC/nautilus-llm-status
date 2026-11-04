@@ -25,7 +25,7 @@ export function CategoryFilter({
       size="sm"
       spacing={2}
       aria-label="Filter models by category"
-      className="flex-wrap justify-start"
+      className="mb-8 flex-wrap justify-start"
       value={selectedCategory ?? ""}
       onValueChange={(value) => onChange(value || null)}
     >

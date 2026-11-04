@@ -21,7 +21,7 @@ export function ModelSection({
   status,
   models,
   metricsMeta,
-  colsClass = "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 lg:grid-cols-3",
+  colsClass = "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
   sectionClass = "mb-6",
   collapsible = false,
   defaultCollapsed = false,
