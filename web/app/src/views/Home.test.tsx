@@ -57,7 +57,7 @@ function renderHome() {
 }
 
 function chip(label: string): HTMLElement {
-  return screen.getByRole("button", { name: label });
+  return screen.getByRole("radio", { name: label });
 }
 
 function setModels(models: Model[] | null) {
@@ -73,7 +73,7 @@ afterEach(() => {
 });
 
 describe("Home category filter", () => {
-  it("shows every noncollapsed status section under All", () => {
+  it("shows every noncollapsed status section when unfiltered", () => {
     setModels(FIXTURE);
     renderHome();
 
@@ -101,15 +101,18 @@ describe("Home category filter", () => {
     expect(screen.getByText("Temporarily Down (1)")).toBeTruthy();
   });
 
-  it("All restores all visible cards", () => {
+  it("clicking the active chip again deselects it and restores all cards", () => {
     setModels(FIXTURE);
     renderHome();
 
     fireEvent.click(chip("Speech"));
-    fireEvent.click(chip("All"));
+    expect(screen.queryByText("llama-4-scout-17b")).toBeNull();
+
+    fireEvent.click(chip("Speech"));
 
     expect(screen.getByText("llama-4-scout-17b")).toBeTruthy();
     expect(screen.getByText("Online (4)")).toBeTruthy();
+    expect(chip("Speech").getAttribute("aria-checked")).toBe("false");
   });
 
   it("shows the category as a corner pill and hides it entirely for chat", () => {
@@ -131,7 +134,7 @@ describe("Home category filter", () => {
     const { rerender } = renderHome();
 
     expect(
-      screen.queryByRole("group", { name: "Filter models by category" }),
+      screen.queryByRole("radiogroup", { name: "Filter models by category" }),
     ).toBeNull();
     expect(screen.getByText("Online (1)")).toBeTruthy();
 
@@ -147,7 +150,7 @@ describe("Home category filter", () => {
       </MemoryRouter>,
     );
     expect(
-      screen.getByRole("group", { name: "Filter models by category" }),
+      screen.getByRole("radiogroup", { name: "Filter models by category" }),
     ).toBeTruthy();
   });
 
@@ -184,22 +187,24 @@ describe("Home category filter", () => {
     expect(screen.getByText("empty-category")).toBeTruthy();
   });
 
-  it("marks the selected chip with aria-pressed", () => {
+  it("marks the selected chip with aria-checked; there is no All chip", () => {
     setModels(FIXTURE);
     renderHome();
 
-    const allChip = chip("All");
-    expect(allChip.getAttribute("aria-pressed")).toBe("true");
+    // No explicit "All" chip: nothing selected means all models shown
+    expect(screen.queryByRole("radio", { name: "All" })).toBeNull();
+    expect(chip("Speech").getAttribute("aria-checked")).toBe("false");
 
     fireEvent.click(chip("Speech"));
-    expect(chip("Speech").getAttribute("aria-pressed")).toBe("true");
-    expect(allChip.getAttribute("aria-pressed")).toBe("false");
+    expect(chip("Speech").getAttribute("aria-checked")).toBe("true");
+    expect(chip("Chat").getAttribute("aria-checked")).toBe("false");
   });
 
   it("chips are keyboard-activatable native buttons", () => {
     // jsdom does not implement button activation behavior (Enter -> click),
     // so we assert the native semantics that guarantee it in browsers:
-    // a real <button type="button"> that is enabled and focusable.
+    // a real <button type="button"> that is enabled. (The toggle group
+    // manages roving tabindex and arrow-key navigation itself.)
     setModels(FIXTURE);
     renderHome();
 
@@ -207,14 +212,13 @@ describe("Home category filter", () => {
     expect(speech.tagName).toBe("BUTTON");
     expect(speech.getAttribute("type")).toBe("button");
     expect((speech as HTMLButtonElement).disabled).toBe(false);
-    expect(speech.getAttribute("tabindex")).not.toBe("-1");
 
     // Click activation itself is covered by the other tests.
     fireEvent.click(speech);
     expect(screen.queryByText("llama-4-scout-17b")).toBeNull();
   });
 
-  it("resets to All when the selected category disappears on refresh", () => {
+  it("clears the selection when the selected category disappears on refresh", () => {
     setModels(FIXTURE);
     const { rerender } = renderHome();
 
@@ -233,7 +237,11 @@ describe("Home category filter", () => {
       </MemoryRouter>,
     );
 
-    expect(chip("All").getAttribute("aria-pressed")).toBe("true");
+    // Nothing selected -> everything shown, no chip checked
+    const checked = screen
+      .queryAllByRole("radio")
+      .filter((el) => el.getAttribute("aria-checked") === "true");
+    expect(checked).toEqual([]);
     expect(screen.getByText("llama-4-scout-17b")).toBeTruthy();
   });
 
@@ -242,9 +250,9 @@ describe("Home category filter", () => {
     const { rerender } = renderHome();
 
     fireEvent.click(chip("Speech"));
-    expect(chip("All").getAttribute("aria-pressed")).toBe("false");
+    expect(chip("Speech").getAttribute("aria-checked")).toBe("true");
 
-    // Poll returns data without any speech models -> selection resets to All.
+    // Poll returns data without any speech models -> selection clears.
     // Embedding keeps the filter visible across this refresh.
     setModels([
       m(1, "llama-4-scout-17b", "chat", "online"),
@@ -255,7 +263,11 @@ describe("Home category filter", () => {
         <Home />
       </MemoryRouter>,
     );
-    expect(chip("All").getAttribute("aria-pressed")).toBe("true");
+    // The Speech chip is gone along with its category, and nothing is checked
+    const checkedAfterReset = screen
+      .queryAllByRole("radio")
+      .filter((el) => el.getAttribute("aria-checked") === "true");
+    expect(checkedAfterReset).toEqual([]);
 
     // A later poll brings speech models back: the filter must stay off
     setModels([
@@ -268,8 +280,7 @@ describe("Home category filter", () => {
       </MemoryRouter>,
     );
 
-    expect(chip("All").getAttribute("aria-pressed")).toBe("true");
-    expect(chip("Speech").getAttribute("aria-pressed")).toBe("false");
+    expect(chip("Speech").getAttribute("aria-checked")).toBe("false");
     expect(screen.getByText("llama-4-scout-17b")).toBeTruthy();
   });
 
@@ -290,7 +301,7 @@ describe("Home category filter", () => {
       </MemoryRouter>,
     );
 
-    expect(chip("Speech").getAttribute("aria-pressed")).toBe("true");
+    expect(chip("Speech").getAttribute("aria-checked")).toBe("true");
     expect(screen.getByText("whisper-large-v3")).toBeTruthy();
     expect(screen.queryByText("llama-4-scout-17b")).toBeNull();
   });

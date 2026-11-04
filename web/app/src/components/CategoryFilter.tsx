@@ -1,3 +1,4 @@
+import { ToggleGroup, ToggleGroupItem } from "@e-infra/design-system";
 import { getCategoryLabel } from "../lib/model-categories";
 
 interface CategoryFilterProps {
@@ -6,34 +7,11 @@ interface CategoryFilterProps {
   onChange: (category: string | null) => void;
 }
 
-function Chip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-        active
-          ? "bg-primary text-primary-foreground border-primary"
-          : "bg-transparent text-text-muted border-border hover:bg-secondary/50"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
 /**
- * Single-select category filter chips. "All" is represented internally
- * as null — no category may use that id (reserved server-side).
+ * Single-select category filter built on the design system's toggle
+ * group (rendered as a radiogroup with aria-checked items). There is no
+ * explicit "All" chip: an empty selection means all models are shown,
+ * and clicking the active chip again deselects it.
  */
 export function CategoryFilter({
   categories,
@@ -41,24 +19,25 @@ export function CategoryFilter({
   onChange,
 }: CategoryFilterProps) {
   return (
-    <div
-      role="group"
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      size="sm"
+      spacing={8}
       aria-label="Filter models by category"
-      className="flex flex-wrap items-center gap-2 mb-4"
+      className="flex-wrap justify-start"
+      value={selectedCategory ?? ""}
+      onValueChange={(value) => onChange(value || null)}
     >
-      <Chip
-        label="All"
-        active={selectedCategory === null}
-        onClick={() => onChange(null)}
-      />
       {categories.map((category) => (
-        <Chip
+        <ToggleGroupItem
           key={category}
-          label={getCategoryLabel(category)}
-          active={selectedCategory === category}
-          onClick={() => onChange(category)}
-        />
+          value={category}
+          className="rounded-full"
+        >
+          {getCategoryLabel(category)}
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }
