@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Home } from "./Home";
-import type { MetricsMeta, Model } from "../types/api";
+import type { MetricsMeta, Model, ModelLatest } from "../types/api";
 
 const hooks = vi.hoisted(() => ({
   models: null as Model[] | null,
@@ -152,6 +152,35 @@ describe("Home category filter", () => {
     expect(
       screen.getByLabelText("Filter models by category"),
     ).toBeTruthy();
+  });
+
+  it("down cards show a not-reporting placeholder instead of stale metric values", () => {
+    // Simulates the bug scenario: a model shut down while still holding
+    // last-known metric values. Its card must not display them as live.
+    const withStaleLatest = (model: Model): Model => ({
+      ...model,
+      latest: {
+        num_requests_running: 2,
+        num_requests_waiting: 1,
+        kv_cache_usage_perc: 40,
+        generation_tokens_rate: 120,
+      } as ModelLatest,
+    });
+    setModels([
+      withStaleLatest(m(1, "qwen3-32b", "chat", "online")),
+      withStaleLatest(m(2, "nomic-embed-text-v2-moe", "embedding", "down")),
+    ]);
+    renderHome();
+
+    const onlineCard = screen.getByLabelText("qwen3-32b — online");
+    expect(within(onlineCard).getByText("Running Requests")).toBeTruthy();
+
+    const downCard = screen.getByLabelText(
+      "nomic-embed-text-v2-moe — down",
+    );
+    expect(within(downCard).queryByText("Running Requests")).toBeNull();
+    expect(within(downCard).queryByText("KV Cache Usage")).toBeNull();
+    expect(within(downCard).getByText(/not reporting metrics/i)).toBeTruthy();
   });
 
   it("archived-only categories get a chip; selecting retains the collapsed Archived section until expanded", () => {

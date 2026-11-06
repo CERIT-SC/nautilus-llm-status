@@ -190,7 +190,7 @@ export function ModelCard({ model, metricsMeta }: ModelCardProps) {
 
       {/* ── metrics grid ── */}
       <CardContent className="px-0 space-y-3">
-        {model.status !== "archived" && (
+        {model.status === "online" && (
           <div className="grid grid-cols-2 gap-3 px-6">
             <MetricCell
               label="Running Requests"
@@ -230,6 +230,15 @@ export function ModelCard({ model, metricsMeta }: ModelCardProps) {
           <div className="px-6">
             <p className="text-text-muted text-xs italic">
               This model is archived and no longer reporting metrics.
+            </p>
+          </div>
+        )}
+
+        {/* Down placeholder — stale last-known values must not render as live */}
+        {model.status === "down" && (
+          <div className="px-6">
+            <p className="text-text-muted text-xs italic">
+              This model is temporarily down and not reporting metrics.
             </p>
           </div>
         )}
