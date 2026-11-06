@@ -33,11 +33,12 @@ export function getAvailableCategories(models: Model[]): string[] {
   return [...set].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 }
 
-/** null means "All" — no filtering. */
+/** Empty selection means "All" — no filtering; otherwise match any selected id. */
 export function filterModelsByCategory(
   models: Model[],
-  category: string | null,
+  categories: string[],
 ): Model[] {
-  if (category === null) return models;
-  return models.filter((m) => getModelCategory(m) === category);
+  if (categories.length === 0) return models;
+  const wanted = new Set(categories);
+  return models.filter((m) => wanted.has(getModelCategory(m)));
 }

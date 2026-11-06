@@ -27,26 +27,36 @@ export function Home() {
   const models = useMemo(() => data ?? [], [data]);
   const { data: metricsMeta = [] } = useMetricsMeta();
 
-  // Local filter selection. If a refresh removes the selected category,
-  // reconcile back to "All" instead of stranding a hidden selection.
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  // Local filter selection. An empty list shows every model. If a
+  // refresh removes a selected category, reconcile back by dropping it
+  // instead of stranding a hidden selection.
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const availableCategories = useMemo(
     () => getAvailableCategories(models),
     [models],
   );
-  // Clear a stale selection synchronously during render (React's derived
+  // Drop vanished categories synchronously during render (React's derived
   // reset pattern — no effect, no cascading render), so a later poll that
-  // re-adds the category cannot silently re-enable the filter.
-  const hasStaleSelection =
-    selectedCategory !== null && !availableCategories.includes(selectedCategory);
-  if (hasStaleSelection) {
-    setSelectedCategory(null);
+  // re-adds a category cannot silently re-enable it.
+  const hasStaleCategories = selectedCategories.some(
+    (category) => !availableCategories.includes(category),
+  );
+  if (hasStaleCategories) {
+    setSelectedCategories(
+      selectedCategories.filter((category) =>
+        availableCategories.includes(category),
+      ),
+    );
   }
-  const effectiveCategory = hasStaleSelection ? null : selectedCategory;
+  const effectiveCategories = hasStaleCategories
+    ? selectedCategories.filter((category) =>
+        availableCategories.includes(category),
+      )
+    : selectedCategories;
 
   const visibleModels = useMemo(
-    () => filterModelsByCategory(models, effectiveCategory),
-    [models, effectiveCategory],
+    () => filterModelsByCategory(models, effectiveCategories),
+    [models, effectiveCategories],
   );
 
   const summaryMeta = useMemo(
@@ -111,13 +121,16 @@ export function Home() {
 
   return (
     <Content className="container mx-auto px-4 pt-8">
-      <ContentHeading>LLM Models</ContentHeading>
+      {/* mb-4 tightens the gap to the filter chips below: the filters read
+          as part of the title block, while the larger mb-8 on the filter
+          itself separates them from the model sections they control. */}
+      <ContentHeading className="mb-4">LLM Models</ContentHeading>
       <ContentBody>
         {availableCategories.length > 1 && (
           <CategoryFilter
             categories={availableCategories}
-            selectedCategory={effectiveCategory}
-            onChange={setSelectedCategory}
+            selectedCategories={effectiveCategories}
+            onChange={setSelectedCategories}
           />
         )}
         {onlineModels.length > 0 && (

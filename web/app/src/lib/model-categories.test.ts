@@ -93,18 +93,23 @@ describe("filterModelsByCategory", () => {
     model({ id: 4, model_name: "d", category: "embedding", status: "archived" }),
   ];
 
-  it("keeps every model, including archived, for null (All)", () => {
-    expect(filterModelsByCategory(models, null)).toHaveLength(4);
+  it("keeps every model, including archived, for an empty selection (All)", () => {
+    expect(filterModelsByCategory(models, [])).toHaveLength(4);
   });
 
-  it("matches the exact category id", () => {
-    const speech = filterModelsByCategory(models, "speech");
-    expect(speech.map((m) => m.model_name)).toEqual(["a", "b"]);
-    expect(filterModelsByCategory(models, "chat").map((m) => m.model_name)).toEqual(["c"]);
-    expect(filterModelsByCategory(models, "embedding").map((m) => m.model_name)).toEqual(["d"]);
+  it("matches a single selected category id", () => {
+    expect(filterModelsByCategory(models, ["speech"]).map((m) => m.model_name)).toEqual(["a", "b"]);
+    expect(filterModelsByCategory(models, ["chat"]).map((m) => m.model_name)).toEqual(["c"]);
+    expect(filterModelsByCategory(models, ["embedding"]).map((m) => m.model_name)).toEqual(["d"]);
   });
 
-  it("returns nothing for an unknown category", () => {
-    expect(filterModelsByCategory(models, "vision")).toEqual([]);
+  it("matches any of multiple selected categories", () => {
+    expect(
+      filterModelsByCategory(models, ["chat", "speech"]).map((m) => m.model_name),
+    ).toEqual(["a", "b", "c"]);
+  });
+
+  it("returns nothing when only unknown categories are selected", () => {
+    expect(filterModelsByCategory(models, ["vision"])).toEqual([]);
   });
 });

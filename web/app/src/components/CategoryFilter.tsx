@@ -3,36 +3,45 @@ import { getCategoryLabel } from "../lib/model-categories";
 
 interface CategoryFilterProps {
   categories: string[];
-  selectedCategory: string | null;
-  onChange: (category: string | null) => void;
+  selectedCategories: string[];
+  onChange: (categories: string[]) => void;
 }
 
 /**
- * Single-select category filter built on the design system's toggle
- * group (rendered as a radiogroup with aria-checked items). There is no
- * explicit "All" chip: an empty selection means all models are shown,
- * and clicking the active chip again deselects it.
+ * Multi-select category filter built on the design system's toggle
+ * group (type="multiple"). An empty selection means all models are
+ * shown; several selected chips show models from any of them, and
+ * clicking an active chip toggles it off.
+ *
+ * Radix renders `type="multiple"` items as plain buttons announced
+ * with aria-pressed inside a toolbar, so the roles are overridden to
+ * checkbox semantics — the conventional announcement for multi-select
+ * filters.
  */
 export function CategoryFilter({
   categories,
-  selectedCategory,
+  selectedCategories,
   onChange,
 }: CategoryFilterProps) {
   return (
     <ToggleGroup
-      type="single"
+      type="multiple"
       variant="outline"
       size="sm"
       spacing={2}
+      role="group"
       aria-label="Filter models by category"
       className="mb-8 flex-wrap justify-start"
-      value={selectedCategory ?? ""}
-      onValueChange={(value) => onChange(value || null)}
+      value={selectedCategories}
+      onValueChange={onChange}
     >
       {categories.map((category) => (
         <ToggleGroupItem
           key={category}
           value={category}
+          role="checkbox"
+          aria-checked={selectedCategories.includes(category)}
+          aria-pressed={undefined}
           className="rounded-full"
         >
           {getCategoryLabel(category)}

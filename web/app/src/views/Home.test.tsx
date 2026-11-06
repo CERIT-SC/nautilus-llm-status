@@ -57,7 +57,7 @@ function renderHome() {
 }
 
 function chip(label: string): HTMLElement {
-  return screen.getByRole("radio", { name: label });
+  return screen.getByRole("checkbox", { name: label });
 }
 
 function setModels(models: Model[] | null) {
@@ -99,6 +99,26 @@ describe("Home category filter", () => {
     // Section labels stay, counts follow the filter
     expect(screen.getByText("Online (1)")).toBeTruthy();
     expect(screen.getByText("Temporarily Down (1)")).toBeTruthy();
+  });
+
+  it("selecting multiple chips shows models from any selected category", () => {
+    setModels(FIXTURE);
+    renderHome();
+
+    fireEvent.click(chip("Speech"));
+    fireEvent.click(chip("Embedding"));
+
+    expect(screen.getByText("whisper-large-v3")).toBeTruthy();
+    expect(screen.getByText("canary-1b-flash")).toBeTruthy();
+    expect(screen.getByText("mxbai-embed-large:latest")).toBeTruthy();
+    expect(screen.getByText("nomic-embed-text-v2-moe")).toBeTruthy();
+    expect(screen.queryByText("llama-4-scout-17b")).toBeNull();
+
+    // Counts follow the combined filter; the Archived section disappears
+    // because its only model is in the unselected vision category.
+    expect(screen.getByText("Online (2)")).toBeTruthy();
+    expect(screen.getByText("Temporarily Down (2)")).toBeTruthy();
+    expect(screen.queryByText("Archived (1)")).toBeNull();
   });
 
   it("clicking the active chip again deselects it and restores all cards", () => {
@@ -216,17 +236,22 @@ describe("Home category filter", () => {
     expect(screen.getByText("empty-category")).toBeTruthy();
   });
 
-  it("marks the selected chip with aria-checked; there is no All chip", () => {
+  it("marks selected chips with aria-checked independently; there is no All chip", () => {
     setModels(FIXTURE);
     renderHome();
 
     // No explicit "All" chip: nothing selected means all models shown
-    expect(screen.queryByRole("radio", { name: "All" })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "All" })).toBeNull();
     expect(chip("Speech").getAttribute("aria-checked")).toBe("false");
 
     fireEvent.click(chip("Speech"));
     expect(chip("Speech").getAttribute("aria-checked")).toBe("true");
     expect(chip("Chat").getAttribute("aria-checked")).toBe("false");
+
+    // Several chips can be checked at once
+    fireEvent.click(chip("Chat"));
+    expect(chip("Chat").getAttribute("aria-checked")).toBe("true");
+    expect(chip("Speech").getAttribute("aria-checked")).toBe("true");
   });
 
   it("chips are keyboard-activatable native buttons", () => {
@@ -268,7 +293,7 @@ describe("Home category filter", () => {
 
     // Nothing selected -> everything shown, no chip checked
     const checked = screen
-      .queryAllByRole("radio")
+      .queryAllByRole("checkbox")
       .filter((el) => el.getAttribute("aria-checked") === "true");
     expect(checked).toEqual([]);
     expect(screen.getByText("llama-4-scout-17b")).toBeTruthy();
@@ -294,7 +319,7 @@ describe("Home category filter", () => {
     );
     // The Speech chip is gone along with its category, and nothing is checked
     const checkedAfterReset = screen
-      .queryAllByRole("radio")
+      .queryAllByRole("checkbox")
       .filter((el) => el.getAttribute("aria-checked") === "true");
     expect(checkedAfterReset).toEqual([]);
 
@@ -311,6 +336,55 @@ describe("Home category filter", () => {
 
     expect(chip("Speech").getAttribute("aria-checked")).toBe("false");
     expect(screen.getByText("llama-4-scout-17b")).toBeTruthy();
+  });
+
+  it("drops only vanished categories from a multi-selection and never resurrects them", () => {
+    setModels(FIXTURE);
+    const { rerender } = renderHome();
+
+    fireEvent.click(chip("Speech"));
+    fireEvent.click(chip("Embedding"));
+    expect(screen.queryByText("llama-4-scout-17b")).toBeNull();
+
+    // Poll returns data without any speech models.
+    setModels([
+      m(1, "llama-4-scout-17b", "chat", "online"),
+      m(4, "mxbai-embed-large:latest", "embedding", "online"),
+      m(5, "nomic-embed-text-v2-moe", "embedding", "down"),
+    ]);
+    rerender(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    // The Speech chip is gone and its selection dropped with it;
+    // Embedding stays checked and keeps filtering.
+    expect(screen.queryByRole("checkbox", { name: "Speech" })).toBeNull();
+    const checked = screen
+      .queryAllByRole("checkbox")
+      .filter((el) => el.getAttribute("aria-checked") === "true");
+    expect(checked.map((el) => el.textContent)).toEqual(["Embedding"]);
+    expect(screen.getByText("mxbai-embed-large:latest")).toBeTruthy();
+    expect(screen.queryByText("llama-4-scout-17b")).toBeNull();
+
+    // A later poll brings speech models back: the dropped category
+    // must stay unselected, the retained one must keep filtering.
+    setModels([
+      m(1, "llama-4-scout-17b", "chat", "online"),
+      m(3, "whisper-large-v3", "speech", "online"),
+      m(4, "mxbai-embed-large:latest", "embedding", "online"),
+    ]);
+    rerender(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(chip("Speech").getAttribute("aria-checked")).toBe("false");
+    expect(chip("Embedding").getAttribute("aria-checked")).toBe("true");
+    expect(screen.queryByText("whisper-large-v3")).toBeNull();
+    expect(screen.getByText("mxbai-embed-large:latest")).toBeTruthy();
   });
 
   it("retains the selection across a refresh that still has the category", () => {
