@@ -3,6 +3,21 @@
 @import "@e-infra/design-system/setup.css";
 @source "../node_modules/@e-infra/design-system/dist";
 
+:root {
+  --chart-2: #ca83ac;
+  --chart-3: #7ecdf8;
+  --chart-4: #1cc16f;
+  --chart-5: #f7ce5b;
+}
+
+:root.dark {
+  --chart-1: #818cf8;
+  --chart-2: #34d399;
+  --chart-3: #fbbf24;
+  --chart-4: #c084fc;
+  --chart-5: #f87171;
+}
+
 /* Tabular numbers: usage figures get compared down a column, so they must
    not shift width. */
 @layer utilities {
